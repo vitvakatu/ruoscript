@@ -1,0 +1,7 @@
+/target
+**/*.rs.bk
+
+*.iml
+
+# grammar file
+src/grammar.rs

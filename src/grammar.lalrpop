@@ -1,0 +1,98 @@
+use std::str::FromStr;
+use ast::{Expr, BinOp, UnOp};
+
+grammar;
+
+Tier<Op, NextTier> : Box<Expr> = {
+    Tier<Op, NextTier> Op NextTier => Box::new(Expr::BinOp(<>)),
+    NextTier
+};
+
+pub Program = Statement+;
+
+pub Statement = {
+    Assign,
+};
+
+Assign: Box<Expr> = {
+    "let" <i:Identifier> "=" <expr:OrExpr> => Box::new(Expr::Assign(i, expr)),
+};
+
+pub Expr = {
+    OrExpr,
+}
+
+OrExpr = Tier<Or, AndExpr>;
+AndExpr = Tier<And, CmpExpr>;
+CmpExpr = Tier<CmpOp, AddExpr>;
+AddExpr = Tier<AddOp, MulExpr>;
+MulExpr = Tier<MulOp, UnExpr>;
+UnExpr = {
+    UnOp UnExpr => Box::new(Expr::UnOp(<>)),
+    PowExpr
+};
+PowExpr = Tier<PowOp, Term>;
+
+Term: Box<Expr> = {
+    Identifier => Box::new(Expr::Variable(<>)),
+    Int => Box::new(Expr::Int(<>)),
+    Float => Box::new(Expr::Float(<>)),
+    Bool => Box::new(Expr::Bool(<>)),
+    "(" <Expr> ")"
+};
+
+PowOp: BinOp = {
+    "^" => BinOp::Pow,
+};
+
+UnOp: UnOp = {
+    "!" => UnOp::Not,
+    "not" => UnOp::Not,
+    "-" => UnOp::Minus,
+};
+
+MulOp: BinOp = {
+    "*" => BinOp::Mul,
+    "/" => BinOp::Div,
+};
+
+AddOp: BinOp = {
+    "+" => BinOp::Add,
+    "-" => BinOp::Sub,
+};
+
+CmpOp: BinOp = {
+    "<" => BinOp::Lt,
+    "<=" => BinOp::Le,
+    ">" => BinOp::Gt,
+    ">=" => BinOp::Ge,
+    "==" => BinOp::Eq,
+    "!=" => BinOp::NotEq,
+};
+
+And: BinOp = {
+    "and" => BinOp::And,
+    "&&" => BinOp::And,
+};
+
+Or: BinOp = {
+    "or" => BinOp::Or,
+    "||" => BinOp::Or,
+};
+
+Int: i64 = {
+    r"[\+\-]?[0-9]+" => FromStr::from_str(<>).unwrap()
+};
+
+Float: f64 = {
+    r"[\+\-]?\d+\.\d+([eE][\+\-]?\d+)?" => FromStr::from_str(<>).unwrap()
+};
+
+Bool: bool = {
+    "true" => true,
+    "false" => false,
+};
+
+Identifier: String = {
+    <s: r"[a-zA-Z_][a-zA-Z0-9_]*"> => s.to_string()
+};
