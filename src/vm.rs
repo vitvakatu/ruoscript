@@ -31,6 +31,10 @@ pub enum Command {
         to: LocalVar,
         from: LocalVar,
     },
+    FunCall {
+        func: LocalVar,
+        arg: LocalVar,
+    },
     Add {
         left: LocalVar,
         right: LocalVar,
@@ -124,7 +128,7 @@ impl Storage {
     }
 
     pub fn load(&self, var: LocalVar) -> Value {
-        self.storage[var]
+        self.storage[var].clone()
     }
 }
 
@@ -188,6 +192,15 @@ impl Command {
                     commands.push(Command::Assign {
                         to: res_var,
                         from: var,
+                    });
+                }
+                Expr::FunCall(ident, arg) => {
+                    let func = storage.get_variable(&ident).unwrap();
+                    let var = storage.get_free();
+                    stack.push((var, arg.clone()));
+                    commands.push(Command::FunCall {
+                        func,
+                        arg: var,
                     });
                 }
                 Expr::UnOp(op, value) => {
@@ -315,6 +328,12 @@ impl VM {
         self.current_command = 0;
     }
 
+    pub fn add_variable(&mut self, ident: &str, value: Value) {
+        let var = self.storage.get_free();
+        self.store(var, value);
+        self.storage.add_variable(ident.to_string(), var);
+    }
+
     pub fn variables(&self) -> Vec<(String, Value)> {
         self.storage.variables()
     }
@@ -349,6 +368,16 @@ impl VM {
                 Command::Assign { to, from } => {
                     let value = self.load(from);
                     self.store(to, value);
+                }
+                Command::FunCall { func, arg } => {
+                    let function = self.load(func);
+                    let arg = self.load(arg);
+                    match function {
+                        Value::Function(f) => {
+                            f(arg)
+                        }
+                        _ => unreachable!()
+                    }
                 }
                 Command::UnaryMinus { value, result } => {
                     let value = self.load(value);

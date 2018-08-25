@@ -7,6 +7,12 @@ mod vm;
 use std::fs::File;
 use std::io::{self, Read};
 
+use value::Value;
+
+fn print(value: Value) {
+    println!("{:?}", value);
+}
+
 fn main() -> io::Result<()> {
     let mut file = File::open("scripts/arithmetic.ruo")?;
     let parser = grammar::ProgramParser::new();
@@ -17,6 +23,7 @@ fn main() -> io::Result<()> {
     println!("Ast: {:?}", ast);
 
     let mut vm = vm::VM::new();
+    vm.add_variable("print", Value::Function(print));
     for expr in ast {
         vm.parse_ast(expr);
     }

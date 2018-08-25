@@ -11,6 +11,7 @@ Tier<Op, NextTier> : Box<Expr> = {
 pub Program = Statement+;
 
 pub Statement = {
+    FunCall,
     Assign,
 };
 
@@ -38,6 +39,7 @@ Term: Box<Expr> = {
     Int => Box::new(Expr::Int(<>)),
     Float => Box::new(Expr::Float(<>)),
     Bool => Box::new(Expr::Bool(<>)),
+    FunCall,
     "(" <Expr> ")"
 };
 
@@ -78,6 +80,10 @@ And: BinOp = {
 Or: BinOp = {
     "or" => BinOp::Or,
     "||" => BinOp::Or,
+};
+
+FunCall: Box<Expr> = {
+    <ident: Identifier> "(" <arg: Expr> ")" => Box::new(Expr::FunCall(ident, arg)),
 };
 
 Int: i64 = {

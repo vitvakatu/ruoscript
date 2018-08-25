@@ -9,6 +9,7 @@ pub enum Expr {
     BinOp(Box<Expr>, BinOp, Box<Expr>),
     UnOp(UnOp, Box<Expr>),
     Assign(Ident, Box<Expr>),
+    FunCall(Ident, Box<Expr>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
