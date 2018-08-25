@@ -1,11 +1,11 @@
 mod ast;
 mod grammar;
-mod vm;
-mod value;
 mod types;
+mod value;
+mod vm;
 
-use std::io::{self, Read};
 use std::fs::File;
+use std::io::{self, Read};
 
 fn main() -> io::Result<()> {
     let mut file = File::open("scripts/arithmetic.ruo")?;

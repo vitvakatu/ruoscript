@@ -1,4 +1,4 @@
-use types::{Int, Float, Bool};
+use types::{Bool, Float, Int};
 
 use std::cmp::Ordering;
 
@@ -14,7 +14,7 @@ impl PartialOrd for Value {
         match (*self, *other) {
             (Value::Int(l), Value::Int(r)) => Some(l.cmp(&r)),
             (Value::Float(l), Value::Float(r)) => l.partial_cmp(&r),
-            _ => None
+            _ => None,
         }
     }
 }

@@ -1,7 +1,7 @@
-use ast::{Expr, BinOp, UnOp};
+use ast::{BinOp, Expr, UnOp};
 use std::collections::HashMap;
-use value::Value;
 use types::*;
+use value::Value;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CmpOp {
@@ -113,7 +113,10 @@ impl Storage {
     }
 
     pub fn variables(&self) -> Vec<(String, Value)> {
-        self.variables.iter().map(|(k, v)| (k.clone(), self.load(*v))).collect()
+        self.variables
+            .iter()
+            .map(|(k, v)| (k.clone(), self.load(*v)))
+            .collect()
     }
 
     pub fn store(&mut self, var: LocalVar, value: Value) {
@@ -160,26 +163,17 @@ impl Command {
         while let Some((res_var, expr)) = stack.pop() {
             match { *expr } {
                 Expr::Int(value) => {
-                    let command = Command::StoreInt {
-                        to: res_var,
-                        value,
-                    };
+                    let command = Command::StoreInt { to: res_var, value };
                     commands.push(command);
-                },
+                }
                 Expr::Float(value) => {
-                    let command = Command::StoreFloat {
-                        to: res_var,
-                        value,
-                    };
+                    let command = Command::StoreFloat { to: res_var, value };
                     commands.push(command);
-                },
+                }
                 Expr::Bool(value) => {
-                    let command = Command::StoreBool {
-                        to: res_var,
-                        value,
-                    };
+                    let command = Command::StoreBool { to: res_var, value };
                     commands.push(command);
-                },
+                }
                 Expr::Assign(ident, expr) => {
                     let var = storage.get_free();
                     stack.push((var, expr.clone()));
@@ -188,14 +182,14 @@ impl Command {
                         to: res_var,
                         from: var,
                     });
-                },
+                }
                 Expr::Variable(ident) => {
                     let var = storage.get_variable(&ident).unwrap();
                     commands.push(Command::Assign {
                         to: res_var,
                         from: var,
                     });
-                },
+                }
                 Expr::UnOp(op, value) => {
                     let var = storage.get_free();
                     stack.push((var, value.clone()));
@@ -210,7 +204,7 @@ impl Command {
                         },
                     };
                     commands.push(command);
-                },
+                }
                 Expr::BinOp(left, op, right) => {
                     let left_var = storage.get_free();
                     let right_var = storage.get_free();
@@ -290,7 +284,7 @@ impl Command {
                         },
                     };
                     commands.push(command);
-                },
+                }
             }
         }
 
@@ -326,7 +320,8 @@ impl VM {
     }
 
     pub fn parse_ast(&mut self, ast: Box<Expr>) {
-        self.commands.extend(&Command::commands_from_expr(ast, &mut self.storage));
+        self.commands
+            .extend(&Command::commands_from_expr(ast, &mut self.storage));
 
         println!("Commands received: {:?}", self.commands);
     }
@@ -344,111 +339,146 @@ impl VM {
             match command {
                 Command::StoreInt { to, value } => {
                     self.store(to, Value::Int(value));
-                },
+                }
                 Command::StoreFloat { to, value } => {
                     self.store(to, Value::Float(value));
-                },
+                }
                 Command::StoreBool { to, value } => {
                     self.store(to, Value::Bool(value));
-                },
+                }
                 Command::Assign { to, from } => {
                     let value = self.load(from);
                     self.store(to, value);
-                },
+                }
                 Command::UnaryMinus { value, result } => {
                     let value = self.load(value);
                     match value {
                         Value::Int(i) => self.store(result, Value::Int(-i)),
                         Value::Float(f) => self.store(result, Value::Float(-f)),
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     }
-                },
+                }
                 Command::UnaryNot { value, result } => {
                     let value = self.load(value);
                     match value {
                         Value::Bool(b) => self.store(result, Value::Bool(!b)),
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     }
-                },
-                Command::Add { left, right, result } => {
+                }
+                Command::Add {
+                    left,
+                    right,
+                    result,
+                } => {
                     let (left, right) = (self.load(left), self.load(right));
                     match (left, right) {
                         (Value::Int(left), Value::Int(right)) => {
                             self.store(result, Value::Int(left + right));
-                        },
+                        }
                         (Value::Float(left), Value::Float(right)) => {
                             self.store(result, Value::Float(left + right));
-                        },
-                        (f, s) => return Err(ExecutionError::InvalidType {
-                            expected: format!("Equal types: {:?}, {:?}", f, s),
-                            got: format!("Different types: {:?}, {:?}", f, s),
-                        })
+                        }
+                        (f, s) => {
+                            return Err(ExecutionError::InvalidType {
+                                expected: format!("Equal types: {:?}, {:?}", f, s),
+                                got: format!("Different types: {:?}, {:?}", f, s),
+                            })
+                        }
                     }
-                },
-                Command::Sub { left, right, result }=> {
+                }
+                Command::Sub {
+                    left,
+                    right,
+                    result,
+                } => {
                     let (left, right) = (self.load(left), self.load(right));
                     match (left, right) {
                         (Value::Int(left), Value::Int(right)) => {
                             self.store(result, Value::Int(left - right));
-                        },
+                        }
                         (Value::Float(left), Value::Float(right)) => {
                             self.store(result, Value::Float(left - right));
-                        },
-                        (f, s) => return Err(ExecutionError::InvalidType {
-                            expected: format!("Equal types: {:?}, {:?}", f, s),
-                            got: format!("Different types: {:?}, {:?}", f, s),
-                        })
+                        }
+                        (f, s) => {
+                            return Err(ExecutionError::InvalidType {
+                                expected: format!("Equal types: {:?}, {:?}", f, s),
+                                got: format!("Different types: {:?}, {:?}", f, s),
+                            })
+                        }
                     }
                 }
-                Command::Mul { left, right, result } => {
+                Command::Mul {
+                    left,
+                    right,
+                    result,
+                } => {
                     let (left, right) = (self.load(left), self.load(right));
                     match (left, right) {
                         (Value::Int(left), Value::Int(right)) => {
                             self.store(result, Value::Int(left * right));
-                        },
+                        }
                         (Value::Float(left), Value::Float(right)) => {
                             self.store(result, Value::Float(left * right));
-                        },
-                        (f, s) => return Err(ExecutionError::InvalidType {
-                            expected: format!("Equal types: {:?}, {:?}", f, s),
-                            got: format!("Different types: {:?}, {:?}", f, s),
-                        })
+                        }
+                        (f, s) => {
+                            return Err(ExecutionError::InvalidType {
+                                expected: format!("Equal types: {:?}, {:?}", f, s),
+                                got: format!("Different types: {:?}, {:?}", f, s),
+                            })
+                        }
                     }
                 }
-                Command::Div { left, right, result } => {
+                Command::Div {
+                    left,
+                    right,
+                    result,
+                } => {
                     let (left, right) = (self.load(left), self.load(right));
                     match (left, right) {
                         (Value::Int(left), Value::Int(right)) => {
                             self.store(result, Value::Int(left / right));
-                        },
+                        }
                         (Value::Float(left), Value::Float(right)) => {
                             self.store(result, Value::Float(left / right));
-                        },
-                        (f, s) => return Err(ExecutionError::InvalidType {
-                            expected: format!("Equal types: {:?}, {:?}", f, s),
-                            got: format!("Different types: {:?}, {:?}", f, s),
-                        })
+                        }
+                        (f, s) => {
+                            return Err(ExecutionError::InvalidType {
+                                expected: format!("Equal types: {:?}, {:?}", f, s),
+                                got: format!("Different types: {:?}, {:?}", f, s),
+                            })
+                        }
                     }
-                },
-                Command::Pow { left, right, result } => {
+                }
+                Command::Pow {
+                    left,
+                    right,
+                    result,
+                } => {
                     let (left, right) = (self.load(left), self.load(right));
                     match (left, right) {
                         (Value::Int(left), Value::Int(right)) => {
                             self.store(result, Value::Int(left.pow(right as u32) as i64));
-                        },
+                        }
                         (Value::Float(left), Value::Float(right)) => {
                             self.store(result, Value::Float(left.powf(right)));
-                        },
+                        }
                         (Value::Float(left), Value::Int(right)) => {
                             self.store(result, Value::Float(left.powi(right as i32)))
                         }
-                        (f, s) => return Err(ExecutionError::InvalidType {
-                            expected: "(Int Int) or (Float Float) or (Float Int)".into(),
-                            got: format!("({:?} {:?})", f, s),
-                        })
+                        (f, s) => {
+                            return Err(ExecutionError::InvalidType {
+                                expected: "(Int Int) or (Float Float) or (Float Int)".into(),
+                                got: format!("({:?} {:?})", f, s),
+                            })
+                        }
                     }
-                },
-                Command::Cmp { left, right, cmp, result } => {
+                }
+                Command::Cmp {
+                    left,
+                    right,
+                    cmp,
+                    result,
+                } => {
                     let (left, right) = (self.load(left), self.load(right));
                     let result_value = match cmp {
                         CmpOp::Lt => left < right,
@@ -459,21 +489,29 @@ impl VM {
                         CmpOp::Eq => left == right,
                     };
                     self.store(result, Value::Bool(result_value));
-                },
-                Command::And { left, right, result } => {
+                }
+                Command::And {
+                    left,
+                    right,
+                    result,
+                } => {
                     let (left, right) = (self.load(left), self.load(right));
                     match (left, right) {
                         (Value::Bool(l), Value::Bool(r)) => self.store(result, Value::Bool(l && r)),
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     }
-                },
-                Command::Or { left, right, result } => {
+                }
+                Command::Or {
+                    left,
+                    right,
+                    result,
+                } => {
                     let (left, right) = (self.load(left), self.load(right));
                     match (left, right) {
                         (Value::Bool(l), Value::Bool(r)) => self.store(result, Value::Bool(l || r)),
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     }
-                },
+                }
                 Command::Halt => break,
             }
             self.current_command += 1;
