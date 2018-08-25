@@ -1,11 +1,7 @@
 use ast::{Expr, BinOp, UnOp};
-use std::cmp::Ordering;
 use std::collections::HashMap;
-
-type LocalVar = usize;
-type Int = i64;
-type Float = f64;
-type Bool = bool;
+use value::Value;
+use types::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CmpOp {
@@ -85,23 +81,6 @@ pub enum Command {
         result: LocalVar,
     },
     Halt,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Value {
-    Int(Int),
-    Float(Float),
-    Bool(Bool),
-}
-
-impl PartialOrd for Value {
-    fn partial_cmp(&self, other: &Value) -> Option<Ordering> {
-        match (*self, *other) {
-            (Value::Int(l), Value::Int(r)) => Some(l.cmp(&r)),
-            (Value::Float(l), Value::Float(r)) => l.partial_cmp(&r),
-            _ => None
-        }
-    }
 }
 
 #[derive(Debug, Default)]

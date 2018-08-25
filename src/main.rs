@@ -1,6 +1,8 @@
 mod ast;
 mod grammar;
 mod vm;
+mod value;
+mod types;
 
 use std::io::{self, Read};
 use std::fs::File;
