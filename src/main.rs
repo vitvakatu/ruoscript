@@ -9,8 +9,9 @@ use std::io::{self, Read};
 
 use value::Value;
 
-fn print(value: Value) {
+fn print(value: Value) -> Value {
     println!("{:?}", value);
+    Value::Empty
 }
 
 fn main() -> io::Result<()> {

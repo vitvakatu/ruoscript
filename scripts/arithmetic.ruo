@@ -1,3 +1,1 @@
-let a = 1 + 2 * 6
-let b = a ^ 3
-print(b)
+let a = print(1)

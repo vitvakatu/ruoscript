@@ -8,7 +8,7 @@ pub enum Value {
     Int(Int),
     Float(Float),
     Bool(Bool),
-    Function(fn(Value) -> ()),
+    Function(fn(Value) -> Value),
 }
 
 impl PartialOrd for Value {

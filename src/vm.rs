@@ -34,6 +34,7 @@ pub enum Command {
     FunCall {
         func: LocalVar,
         arg: LocalVar,
+        result: LocalVar,
     },
     Add {
         left: LocalVar,
@@ -201,6 +202,7 @@ impl Command {
                     commands.push(Command::FunCall {
                         func,
                         arg: var,
+                        result: res_var,
                     });
                 }
                 Expr::UnOp(op, value) => {
@@ -369,12 +371,12 @@ impl VM {
                     let value = self.load(from);
                     self.store(to, value);
                 }
-                Command::FunCall { func, arg } => {
+                Command::FunCall { func, arg, result } => {
                     let function = self.load(func);
                     let arg = self.load(arg);
                     match function {
                         Value::Function(f) => {
-                            f(arg)
+                            self.store(result, f(arg));
                         }
                         _ => unreachable!()
                     }
