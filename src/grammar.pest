@@ -46,9 +46,9 @@ bin_expr = {
     term ~ ( bin_op ~ term)*
 }
 term = _{
-    operand | "(" ~ bin_expr ~ ")"
+    primary | "(" ~ bin_expr ~ ")"
 }
-operand = _{
+primary = _{
     identifier | int | float
 }
 
