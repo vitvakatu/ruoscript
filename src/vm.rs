@@ -31,6 +31,10 @@ pub enum Command {
         to: LocalVar,
         from: LocalVar,
     },
+    /*Jump {
+        cond: LocalVar,
+        to: Label,
+    },*/
     FunCall {
         func: LocalVar,
         arg: LocalVar,
@@ -85,6 +89,7 @@ pub enum Command {
         right: LocalVar,
         result: LocalVar,
     },
+    Nop,
     Halt,
 }
 
@@ -159,14 +164,44 @@ Add #3 #4 #2
 Mul #1 #2 #0
 */
 
+/*
+let a = 1;
+print(a)
+Block[Assign<"a", 1>, FunCall<"print", Variable<"a">>]
+1. (#1) Block[...]                      c:
+2. (#2 Assign<...>) (#3 FunCall<...>)   c:
+3. (#2 Assign<...>) (#4 Variable<"a">)  c: FunCall<#0, #4, #3>
+4. (#2 Assign<...>)                     c: FunCall<#0, #4, #3> Assign<#?, #4>
+5. (#5 1)                               c: FunCall<#0, #4, #3> Assign<#?, #4> Assign<#5, #?>
+6.                                      c: FunCall<#0, #4, #3> Assign<#?, #4> Assign<#5, #?> Store<#5 1>
+
+StoreInt<#5, 1>
+Assign<#5, #?>
+Assign<#?, #4>
+FunCall<#0, #4, #3>
+*/
+
+/*
+Conditions:
+if <test> then <then_branch> else <else_branch> end
+if x then y else z end
+
+*/
+
 impl Command {
     pub fn commands_from_expr(expr: Box<Expr>, storage: &mut Storage) -> Vec<Command> {
         let mut stack = Vec::new();
         let mut commands = Vec::new();
         stack.push((storage.get_free(), expr));
 
+        let mut step = 0;
         while let Some((res_var, expr)) = stack.pop() {
+            println!("Step: {}, commands: {:?}, stack: {:?}", step, commands, stack);
+            step += 1;
             match { *expr } {
+                Expr::Block(exprs) => {
+                    stack.extend(exprs.iter().rev().map(|e| (storage.get_free(), e.clone())));
+                }
                 Expr::Int(value) => {
                     let command = Command::StoreInt { to: res_var, value };
                     commands.push(command);
@@ -300,6 +335,10 @@ impl Command {
                     };
                     commands.push(command);
                 }
+                Expr::Empty => {
+                    commands.push(Command::Nop);
+                }
+                Expr::If(_, _, _) => unimplemented!()
             }
         }
 
@@ -543,6 +582,7 @@ impl VM {
                         _ => unreachable!(),
                     }
                 }
+                Command::Nop => {},
                 Command::Halt => break,
             }
             self.current_command += 1;

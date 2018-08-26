@@ -25,9 +25,7 @@ fn main() -> io::Result<()> {
 
     let mut vm = vm::VM::new();
     vm.add_variable("print", Value::Function(print));
-    for expr in ast {
-        vm.parse_ast(expr);
-    }
+    vm.parse_ast(ast);
     vm.execute();
 
     println!("Variables: {:?}", vm.variables());

@@ -8,19 +8,35 @@ Tier<Op, NextTier> : Box<Expr> = {
     NextTier
 };
 
-pub Program = Statement+;
+pub Program = Block;
+
+Block: Box<Expr> = {
+    <Statement*> => Box::new(Expr::Block(<>)),
+};
+
+ExprBlock: Box<Expr> = {
+    <block:Block?> <expr:Expr> => {
+        if let Some(Expr::Block(exprs)) = block {
+            let mut exprs = exprs.clone();
+            exprs.extend(&[expr]);
+            Box::new(Expr::Block(exprs))
+        } else { Box::new(expr) }
+    }
+};
 
 pub Statement = {
-    FunCall,
-    Assign,
+    <FunCall>,
+    <Assign>,
 };
 
 Assign: Box<Expr> = {
-    "let" <i:Identifier> "=" <expr:OrExpr> => Box::new(Expr::Assign(i, expr)),
+    "let" <i:Identifier> "=" <expr:Expr> => Box::new(Expr::Assign(i, expr)),
+    "let" <i:Identifier> "=" "do" <expr:ExprBlock> "end" => Box::new(Expr::Assign(i, expr)),
 };
 
 pub Expr = {
     OrExpr,
+    "(" <OrExpr> ")",
 }
 
 OrExpr = Tier<Or, AndExpr>;
@@ -39,8 +55,8 @@ Term: Box<Expr> = {
     Int => Box::new(Expr::Int(<>)),
     Float => Box::new(Expr::Float(<>)),
     Bool => Box::new(Expr::Bool(<>)),
+    Empty,
     FunCall,
-    "(" <Expr> ")"
 };
 
 PowOp: BinOp = {
@@ -97,6 +113,10 @@ Float: f64 = {
 Bool: bool = {
     "true" => true,
     "false" => false,
+};
+
+Empty: Box<Expr> = {
+    "()" => Box::new(Expr::Empty),
 };
 
 Identifier: String = {
