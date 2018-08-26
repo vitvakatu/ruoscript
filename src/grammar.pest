@@ -41,6 +41,11 @@ op_lt = { "<" }
 op_and = { "&&" | "and" }
 op_or = { "||" | "or" }
 
+un_op = _{
+    op_not | op_minus
+}
+op_not = { "!" | "not" }
+op_minus = { "-" }
 
 bin_expr = {
     term ~ ( bin_op ~ term)*
@@ -49,7 +54,7 @@ term = _{
     primary | "(" ~ bin_expr ~ ")"
 }
 primary = _{
-    identifier | int | float
+    un_op? ~ (identifier | int | float)
 }
 
 program = {

@@ -3,19 +3,23 @@ extern crate pest;
 extern crate pest_derive;
 
 mod ast;
+mod prec_climber;
 mod types;
 mod value;
 mod vm;
 
+use pest::prec_climber::{Assoc, Operator, PrecClimber};
+use pest::{
+    iterators::{Pair, Pairs},
+    Parser,
+};
 use std::fs::File;
 use std::io::{self, Read};
-use pest::{Parser, iterators::{Pair, Pairs}};
 use std::str::FromStr;
-use pest::prec_climber::{PrecClimber, Operator, Assoc};
 
-use value::Value;
-use ast::Expr;
 use ast::BinOp;
+use ast::Expr;
+use value::Value;
 
 const _GRAMMAR: &str = include_str!("grammar.pest");
 
@@ -45,12 +49,15 @@ fn prec_climber() -> PrecClimber<Rule> {
     PrecClimber::new(vec![
         Operator::new(Rule::op_or, Assoc::Left),
         Operator::new(Rule::op_and, Assoc::Left),
-        Operator::new(Rule::op_eq, Assoc::Left) | Operator::new(Rule::op_neq, Assoc::Left) |
-            Operator::new(Rule::op_ge, Assoc::Left) | Operator::new(Rule::op_gt, Assoc::Left) |
-            Operator::new(Rule::op_le, Assoc::Left) | Operator::new(Rule::op_lt, Assoc::Left),
+        Operator::new(Rule::op_eq, Assoc::Left)
+            | Operator::new(Rule::op_neq, Assoc::Left)
+            | Operator::new(Rule::op_ge, Assoc::Left)
+            | Operator::new(Rule::op_gt, Assoc::Left)
+            | Operator::new(Rule::op_le, Assoc::Left)
+            | Operator::new(Rule::op_lt, Assoc::Left),
         Operator::new(Rule::op_add, Assoc::Left) | Operator::new(Rule::op_sub, Assoc::Left),
         Operator::new(Rule::op_mul, Assoc::Left) | Operator::new(Rule::op_div, Assoc::Left),
-        Operator::new(Rule::op_pow, Assoc::Right)
+        Operator::new(Rule::op_pow, Assoc::Right),
     ])
 }
 
@@ -58,18 +65,19 @@ fn main() -> io::Result<()> {
     let mut input = String::new();
     let mut file = File::open("scripts/arithmetic.ruo")?.read_to_string(&mut input)?;
 
-    let ast = RuoParser::parse(Rule::program, &input).unwrap().next().unwrap();
+    let ast = RuoParser::parse(Rule::program, &input)
+        .unwrap()
+        .next()
+        .unwrap();
     println!("Ast: {:#?}", ast);
 
     fn climb(expr: Pairs<Rule>) -> Box<Expr> {
-        let primary = |pair: Pair<Rule>| {
-            match pair.as_rule() {
-                Rule::int => Box::new(Expr::Int(FromStr::from_str(pair.as_str()).unwrap())),
-                Rule::float => Box::new(Expr::Float(FromStr::from_str(pair.as_str()).unwrap())),
-                Rule::identifier => Box::new(Expr::Variable(pair.as_str().to_string())),
-                Rule::bin_expr => climb(pair.into_inner()),
-                _ => unreachable!()
-            }
+        let primary = |pair: Pair<Rule>| match pair.as_rule() {
+            Rule::int => Box::new(Expr::Int(FromStr::from_str(pair.as_str()).unwrap())),
+            Rule::float => Box::new(Expr::Float(FromStr::from_str(pair.as_str()).unwrap())),
+            Rule::identifier => Box::new(Expr::Variable(pair.as_str().to_string())),
+            Rule::bin_expr => climb(pair.into_inner()),
+            _ => unreachable!(),
         };
 
         let infix = |lhs: Box<Expr>, op: Pair<Rule>, rhs: Box<Expr>| {
@@ -81,7 +89,6 @@ fn main() -> io::Result<()> {
         };
         prec_climber().climb(expr, primary, infix)
     }
-
 
     println!("{:#?}", climb(ast.into_inner()));
 

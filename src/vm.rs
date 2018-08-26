@@ -196,7 +196,10 @@ impl Command {
 
         let mut step = 0;
         while let Some((res_var, expr)) = stack.pop() {
-            println!("Step: {}, commands: {:?}, stack: {:?}", step, commands, stack);
+            println!(
+                "Step: {}, commands: {:?}, stack: {:?}",
+                step, commands, stack
+            );
             step += 1;
             match { *expr } {
                 Expr::Block(exprs) => {
@@ -338,7 +341,7 @@ impl Command {
                 Expr::Empty => {
                     commands.push(Command::Nop);
                 }
-                Expr::If(_, _, _) => unimplemented!()
+                Expr::If(_, _, _) => unimplemented!(),
             }
         }
 
@@ -417,7 +420,7 @@ impl VM {
                         Value::Function(f) => {
                             self.store(result, f(arg));
                         }
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     }
                 }
                 Command::UnaryMinus { value, result } => {
@@ -582,7 +585,7 @@ impl VM {
                         _ => unreachable!(),
                     }
                 }
-                Command::Nop => {},
+                Command::Nop => {}
                 Command::Halt => break,
             }
             self.current_command += 1;

@@ -11,5 +11,8 @@ pub enum Type {
     Bool,
     Any,
     Empty,
-    Function { arguments: Vec<Box<Type>>, result: Box<Type> }
+    Function {
+        arguments: Vec<Box<Type>>,
+        result: Box<Type>,
+    },
 }
