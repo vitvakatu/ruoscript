@@ -1,0 +1,59 @@
+digit = {
+    '0'..'9'
+}
+
+char = {
+    'a'..'z' | 'A'..'Z'
+}
+
+identifier = @{
+    (char | "_") ~ (char | digit | "_")*
+}
+
+opt_sign = _{
+    ("+" | "-")?
+}
+
+int = @{
+    opt_sign ~ digit+
+}
+
+float = @{
+    opt_sign ~ int ~ ("." ~ int ~ (^"e" ~ opt_sign ~ int)?)?
+}
+
+bin_op = _{
+    op_add | op_sub | op_mul | op_div | op_pow |
+    op_eq | op_neq | op_ge | op_gt | op_le | op_lt |
+    op_and | op_or
+}
+op_add = { "+" }
+op_sub = { "-" }
+op_mul = { "*" }
+op_div = { "/" }
+op_pow = { "^" }
+op_eq = { "==" }
+op_neq = { "!=" }
+op_ge = { ">=" }
+op_gt = { ">" }
+op_le = { "<=" }
+op_lt = { "<" }
+op_and = { "&&" | "and" }
+op_or = { "||" | "or" }
+
+
+bin_expr = {
+    term ~ ( bin_op ~ term)*
+}
+term = _{
+    operand | "(" ~ bin_expr ~ ")"
+}
+operand = _{
+    identifier | int | float
+}
+
+program = {
+    soi ~ bin_expr ~ eoi
+}
+
+whitespace = _{ " " | "\t" }

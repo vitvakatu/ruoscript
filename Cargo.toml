@@ -2,12 +2,8 @@
 name = "ruoscript"
 version = "0.1.0"
 authors = ["Ilya Bogdanov <ilya.bogdanov@xdev.re>"]
-build = "build.rs"
 
 [dependencies]
-lalrpop-util = "0.15.2"
-regex = "1.0.2"
-
-[build-dependencies]
-lalrpop = "0.15.2"
+pest = "1.0.6"
+pest_derive = "1.0.8"
 

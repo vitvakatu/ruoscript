@@ -36,7 +36,6 @@ Assign: Box<Expr> = {
 
 pub Expr = {
     OrExpr,
-    "(" <OrExpr> ")",
 }
 
 OrExpr = Tier<Or, AndExpr>;
