@@ -368,7 +368,11 @@ impl VM {
         self.commands
             .extend(Command::commands_from_expr(ast, &mut self.storage));
 
-        println!("Commands received: {:?}", self.commands);
+        println!("Byte code:");
+        for command in &self.commands {
+            println!("{:?}", command);
+        }
+        println!("# ------------------------- #");
     }
 
     pub fn store(&mut self, var: StorageVar, value: Value) {
