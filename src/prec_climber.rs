@@ -56,6 +56,7 @@ fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
 pub fn tokenize(pair: Pair<Rule>) -> Vec<Token> {
     let mut tokens = Vec::new();
     tokenize_rec(pair, &mut tokens);
+    println!("{:?}", tokens);
     tokens
 }
 
@@ -64,6 +65,7 @@ impl Token {
         match *self {
             Token::Mul => 20,
             Token::Add => 10,
+            Token::Sub => 10,
             Token::UnMinus => 10,
             Token::LParen => 0,
             Token::RParen => 0,
@@ -75,6 +77,7 @@ impl Token {
         match *self {
             Token::Int(i) => Box::new(Expr::Int(i)),
             Token::Literal(ref s) => Box::new(Expr::Variable(s.clone())),
+            Token::UnMinus => Box::new(Expr::UnOp(UnOp::Minus, parser.expression(100))),
             Token::LParen => {
                 let expr = parser.expression(self.lbp());
                 parser.skip_rparen();
@@ -86,11 +89,12 @@ impl Token {
 
     pub fn led(&self, parser: &mut Parser, lhs: Box<Expr>) -> Box<Expr> {
         match *self {
-            Token::Add | Token::Mul => {
+            Token::Add | Token::Mul | Token::Sub => {
                 let rhs = parser.expression(self.lbp());
                 let op = match *self {
                     Token::Add => BinOp::Add,
                     Token::Mul => BinOp::Mul,
+                    Token::Sub => BinOp::Sub,
                     _ => unreachable!()
                 };
                 Box::new(Expr::BinOp(lhs, op, rhs))
