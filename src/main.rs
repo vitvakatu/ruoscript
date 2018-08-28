@@ -33,6 +33,37 @@ fn print(value: Value) -> Value {
     Value::Empty
 }
 
+fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
+    println!("{:?}", pair);
+    match pair.as_rule() {
+        Rule::code_block => {
+            let mut exprs = Vec::new();
+            for each in pair.into_inner() {
+                exprs.push(to_ast(each));
+            }
+            Box::new(Expr::Block(exprs))
+        }
+        Rule::bin_expr => {
+            let tokens = tokenize(pair);
+            let mut parser = Parser::new(tokens.iter());
+            parser.expression(0)
+        }
+        Rule::var_assign => {
+            let mut inner = pair.into_inner();
+            let ident = inner.next().unwrap().as_str().to_string();
+            let arg = inner.next().unwrap();
+            Box::new(Expr::Assign(ident, to_ast(arg)))
+        }
+        Rule::fun_call => {
+            let mut inner = pair.into_inner();
+            let ident = inner.next().unwrap().as_str().to_string();
+            let arg = inner.next().unwrap();
+            Box::new(Expr::FunCall(ident, to_ast(arg)))
+        }
+        _ => unreachable!()
+    }
+}
+
 fn main() -> io::Result<()> {
     let mut input = String::new();
     let mut file = File::open("scripts/arithmetic.ruo")?.read_to_string(&mut input)?;
@@ -41,24 +72,16 @@ fn main() -> io::Result<()> {
         .unwrap()
         .next()
         .unwrap();
+
+    let ast = to_ast(ast.into_inner().next().unwrap());
     println!("Ast: {:#?}", ast);
-
-    let tokens = tokenize(ast.into_inner().next().unwrap());
-
-    let mut parser = Parser::new(tokens.iter());
-    let expr = parser.expression(0);
-
-    println!("{:#?}", expr);
-
-
-    /*println!("Ast: {:?}", ast);
 
     let mut vm = vm::VM::new();
     vm.add_variable("print", Value::Function(print));
     vm.parse_ast(ast);
     vm.execute();
 
-    println!("Variables: {:?}", vm.variables());*/
+    println!("Variables: {:?}", vm.variables());
 
     Ok(())
 }

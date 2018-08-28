@@ -1,3 +1,27 @@
+program = {
+    soi ~ code_block ~ eoi
+}
+
+code_block = {
+    statement* ~ expr?
+}
+
+statement = _{
+    (var_assign | fun_call) ~ ";"
+}
+
+var_assign = {
+    "let" ~ identifier ~ "=" ~ expr
+}
+
+fun_call = {
+    identifier ~ lparen ~ expr ~ rparen
+}
+
+expr = _{
+    bin_expr
+}
+
 digit = {
     '0'..'9'
 }
@@ -59,8 +83,5 @@ primary = _{
 lparen = _{ "(" }
 rparen = _{ ")" }
 
-program = {
-    soi ~ bin_expr ~ eoi
-}
 
-whitespace = _{ " " | "\t" }
+whitespace = _{ " " | "\t" | "\n" }
