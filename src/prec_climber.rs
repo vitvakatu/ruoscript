@@ -42,6 +42,7 @@ fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
                     Rule::op_sub => Token::Sub,
                     Rule::op_div => Token::Div,
                     Rule::op_minus => Token::UnMinus,
+                    Rule::op_pow => Token::Pow,
                     _ => unimplemented!()
                 };
                 tokens.push(token);
@@ -63,12 +64,12 @@ pub fn tokenize(pair: Pair<Rule>) -> Vec<Token> {
 impl Token {
     pub fn lbp(&self) -> u32 {
         match *self {
+            Token::Pow => 30,
             Token::Mul => 20,
+            Token::Div => 20,
             Token::Add => 10,
             Token::Sub => 10,
-            Token::UnMinus => 10,
-            Token::LParen => 0,
-            Token::RParen => 0,
+            Token::UnMinus => 100,
             _ => 0,
         }
     }
@@ -77,7 +78,7 @@ impl Token {
         match *self {
             Token::Int(i) => Box::new(Expr::Int(i)),
             Token::Literal(ref s) => Box::new(Expr::Variable(s.clone())),
-            Token::UnMinus => Box::new(Expr::UnOp(UnOp::Minus, parser.expression(100))),
+            Token::UnMinus => Box::new(Expr::UnOp(UnOp::Minus, parser.expression(self.lbp()))),
             Token::LParen => {
                 let expr = parser.expression(self.lbp());
                 parser.skip_rparen();
@@ -89,12 +90,15 @@ impl Token {
 
     pub fn led(&self, parser: &mut Parser, lhs: Box<Expr>) -> Box<Expr> {
         match *self {
-            Token::Add | Token::Mul | Token::Sub => {
-                let rhs = parser.expression(self.lbp());
+            Token::Add | Token::Mul | Token::Sub | Token::Div | Token::Pow => {
+                let lbp = if *self == Token::Pow { self.lbp() - 1 } else { self.lbp() };
+                let rhs = parser.expression(lbp);
                 let op = match *self {
                     Token::Add => BinOp::Add,
                     Token::Mul => BinOp::Mul,
                     Token::Sub => BinOp::Sub,
+                    Token::Div => BinOp::Div,
+                    Token::Pow => BinOp::Pow,
                     _ => unreachable!()
                 };
                 Box::new(Expr::BinOp(lhs, op, rhs))
