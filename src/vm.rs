@@ -27,7 +27,7 @@ pub enum Command {
         to: LocalVar,
         value: Bool,
     },
-    Assign {
+    Move {
         to: LocalVar,
         from: LocalVar,
     },
@@ -221,14 +221,14 @@ impl Command {
                     let var = storage.get_free();
                     stack.push((var, expr.clone()));
                     storage.add_variable(ident, var);
-                    commands.push(Command::Assign {
+                    commands.push(Command::Move {
                         to: res_var,
                         from: var,
                     });
                 }
                 Expr::Variable(ident) => {
                     let var = storage.get_variable(&ident).unwrap();
-                    commands.push(Command::Assign {
+                    commands.push(Command::Move {
                         to: res_var,
                         from: var,
                     });
@@ -409,7 +409,7 @@ impl VM {
                 Command::StoreBool { to, value } => {
                     self.store(to, Value::Bool(value));
                 }
-                Command::Assign { to, from } => {
+                Command::Move { to, from } => {
                     let value = self.load(from);
                     self.store(to, value);
                 }
