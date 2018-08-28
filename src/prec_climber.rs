@@ -36,6 +36,7 @@ fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
             } else {
                 let token = match pair.as_rule() {
                     Rule::int => Token::Int(pair.as_str().parse().unwrap()),
+                    Rule::identifier => Token::Literal(pair.as_str().to_string()),
                     Rule::op_add => Token::Add,
                     Rule::op_mul => Token::Mul,
                     Rule::op_sub => Token::Sub,
@@ -73,6 +74,7 @@ impl Token {
     pub fn nud(&self, parser: &mut Parser) -> Box<Expr> {
         match *self {
             Token::Int(i) => Box::new(Expr::Int(i)),
+            Token::Literal(ref s) => Box::new(Expr::Variable(s.clone())),
             Token::LParen => {
                 let expr = parser.expression(self.lbp());
                 parser.skip_rparen();
