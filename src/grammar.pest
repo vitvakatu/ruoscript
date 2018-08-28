@@ -31,7 +31,17 @@ char = {
 }
 
 identifier = @{
-    (char | "_") ~ (char | digit | "_")*
+    !keywords ~ (char | "_") ~ (char | digit | "_")*
+}
+
+keywords = {
+    "true" |
+    "false" |
+    "and" |
+    "or" |
+    "not" |
+    "if" |
+    "else"
 }
 
 opt_sign = _{
@@ -44,6 +54,10 @@ int = @{
 
 float = @{
     opt_sign ~ digit+ ~ "." ~ digit+ ~ (^"e" ~ opt_sign ~ digit+)?
+}
+
+boolean = @{
+    "true" | "false"
 }
 
 bin_op = _{
@@ -78,7 +92,7 @@ term = _{
     primary | (lparen ~ bin_expr ~ rparen)
 }
 primary = _{
-    un_op? ~ (identifier | float | int)
+    un_op? ~ (identifier | boolean | float | int)
 }
 lparen = _{ "(" }
 rparen = _{ ")" }

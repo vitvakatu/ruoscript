@@ -26,6 +26,7 @@ pub enum Token {
     RParen,
     Int(i64),
     Float(f64),
+    Bool(bool),
     Literal(String),
 }
 
@@ -39,6 +40,7 @@ fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
                 let token = match pair.as_rule() {
                     Rule::int => Token::Int(pair.as_str().parse().unwrap()),
                     Rule::float => Token::Float(pair.as_str().parse().unwrap()),
+                    Rule::boolean => Token::Bool(pair.as_str().parse().unwrap()),
                     Rule::identifier => Token::Literal(pair.as_str().to_string()),
                     Rule::op_add => Token::Add,
                     Rule::op_mul => Token::Mul,
@@ -99,6 +101,7 @@ impl Token {
         match *self {
             Token::Int(i) => Box::new(Expr::Int(i)),
             Token::Float(f) => Box::new(Expr::Float(f)),
+            Token::Bool(b) => Box::new(Expr::Bool(b)),
             Token::Literal(ref s) => Box::new(Expr::Variable(s.clone())),
             Token::UnMinus => Box::new(Expr::UnOp(UnOp::Minus, parser.expression(self.lbp()))),
             Token::UnNot => Box::new(Expr::UnOp(UnOp::Not, parser.expression(self.lbp()))),
