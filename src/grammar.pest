@@ -51,11 +51,13 @@ bin_expr = {
     term ~ ( bin_op ~ term)*
 }
 term = _{
-    primary | "(" ~ bin_expr ~ ")"
+    primary | (lparen ~ bin_expr ~ rparen)
 }
 primary = _{
     un_op? ~ (identifier | int | float)
 }
+lparen = _{ "(" }
+rparen = _{ ")" }
 
 program = {
     soi ~ bin_expr ~ eoi

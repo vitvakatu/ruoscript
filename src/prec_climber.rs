@@ -5,28 +5,56 @@ use Rule;
 use std::iter::Peekable;
 use std::slice::Iter;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Add,
     Mul,
+    Sub,
+    Div,
+    Pow,
+    UnMinus,
+    UnNot,
+    Eq,
+    Neq,
+    Ge,
+    Gt,
+    Le,
+    Lt,
+    LParen,
+    RParen,
     Int(i64),
+    Float(f64),
+    Literal(String),
+}
+
+fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
+    if let Rule::bin_expr = pair.as_rule() {
+        tokens.push(Token::LParen);
+        for pair in pair.into_inner() {
+            if let Rule::bin_expr = pair.as_rule() {
+                tokenize_rec(pair, tokens);
+            } else {
+                let token = match pair.as_rule() {
+                    Rule::int => Token::Int(pair.as_str().parse().unwrap()),
+                    Rule::op_add => Token::Add,
+                    Rule::op_mul => Token::Mul,
+                    Rule::op_sub => Token::Sub,
+                    Rule::op_div => Token::Div,
+                    Rule::op_minus => Token::UnMinus,
+                    _ => unimplemented!()
+                };
+                tokens.push(token);
+            }
+        }
+        tokens.push(Token::RParen);
+    } else {
+        panic!("Not a binary expression");
+    }
 }
 
 pub fn tokenize(pair: Pair<Rule>) -> Vec<Token> {
     let mut tokens = Vec::new();
-    if let Rule::bin_expr = pair.as_rule() {
-        for pair in pair.into_inner() {
-            let token = match pair.as_rule() {
-                Rule::int => Token::Int(pair.as_str().parse().unwrap()),
-                Rule::op_add => Token::Add,
-                Rule::op_mul => Token::Mul,
-                _ => unimplemented!()
-            };
-            tokens.push(token);
-        }
-    } else {
-        panic!("Not a binary expression");
-    }
+    tokenize_rec(pair, &mut tokens);
     tokens
 }
 
@@ -35,13 +63,21 @@ impl Token {
         match *self {
             Token::Mul => 20,
             Token::Add => 10,
+            Token::UnMinus => 10,
+            Token::LParen => 0,
+            Token::RParen => 0,
             _ => 0,
         }
     }
 
-    pub fn nud(&self) -> Box<Expr> {
+    pub fn nud(&self, parser: &mut Parser) -> Box<Expr> {
         match *self {
             Token::Int(i) => Box::new(Expr::Int(i)),
+            Token::LParen => {
+                let expr = parser.expression(self.lbp());
+                parser.skip_rparen();
+                expr
+            }
             _ => panic!("Not a int"),
         }
     }
@@ -71,12 +107,20 @@ impl<'a> Parser<'a> {
         Self { tokens: tokens.peekable() }
     }
 
+    pub fn skip_rparen(&mut self) {
+        if self.tokens.peek().unwrap() == &&Token::RParen {
+            self.tokens.next().unwrap();
+        } else {
+            panic!("Trying to skip rparen, but it's not found!");
+        }
+    }
+
     pub fn next_binds_tighter_than(&mut self, rbp: u32) -> bool {
         self.tokens.peek().map_or(false, |t| { t.lbp() > rbp })
     }
 
     pub fn parse_nud(&mut self) -> Box<Expr> {
-        self.tokens.next().unwrap().nud()
+        self.tokens.next().unwrap().nud(self)
     }
 
     pub fn parse_led(&mut self, expr: Box<Expr>) -> Box<Expr> {
