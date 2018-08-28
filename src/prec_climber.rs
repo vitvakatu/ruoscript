@@ -20,6 +20,8 @@ pub enum Token {
     Gt,
     Le,
     Lt,
+    Or,
+    And,
     LParen,
     RParen,
     Int(i64),
@@ -36,6 +38,7 @@ fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
             } else {
                 let token = match pair.as_rule() {
                     Rule::int => Token::Int(pair.as_str().parse().unwrap()),
+                    Rule::float => Token::Float(pair.as_str().parse().unwrap()),
                     Rule::identifier => Token::Literal(pair.as_str().to_string()),
                     Rule::op_add => Token::Add,
                     Rule::op_mul => Token::Mul,
@@ -43,7 +46,16 @@ fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
                     Rule::op_div => Token::Div,
                     Rule::op_minus => Token::UnMinus,
                     Rule::op_pow => Token::Pow,
-                    _ => unimplemented!()
+                    Rule::op_not => Token::UnNot,
+                    Rule::op_eq => Token::Eq,
+                    Rule::op_neq => Token::Neq,
+                    Rule::op_gt => Token::Gt,
+                    Rule::op_lt => Token::Lt,
+                    Rule::op_ge => Token::Ge,
+                    Rule::op_le => Token::Le,
+                    Rule::op_or => Token::Or,
+                    Rule::op_and => Token::And,
+                    _ => unreachable!()
                 };
                 tokens.push(token);
             }
@@ -57,19 +69,28 @@ fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
 pub fn tokenize(pair: Pair<Rule>) -> Vec<Token> {
     let mut tokens = Vec::new();
     tokenize_rec(pair, &mut tokens);
-    println!("{:?}", tokens);
     tokens
 }
 
 impl Token {
     pub fn lbp(&self) -> u32 {
         match *self {
-            Token::Pow => 30,
-            Token::Mul => 20,
-            Token::Div => 20,
-            Token::Add => 10,
-            Token::Sub => 10,
+            Token::Pow => 200,
             Token::UnMinus => 100,
+            Token::UnNot => 100,
+            Token::Mul => 80,
+            Token::Div => 80,
+            Token::Add => 60,
+            Token::Sub => 60,
+            Token::Eq => 30,
+            Token::Eq => 30,
+            Token::Neq => 30,
+            Token::Le => 30,
+            Token::Lt => 30,
+            Token::Ge => 30,
+            Token::Gt => 30,
+            Token::And => 10,
+            Token::Or => 5,
             _ => 0,
         }
     }
@@ -77,8 +98,10 @@ impl Token {
     pub fn nud(&self, parser: &mut Parser) -> Box<Expr> {
         match *self {
             Token::Int(i) => Box::new(Expr::Int(i)),
+            Token::Float(f) => Box::new(Expr::Float(f)),
             Token::Literal(ref s) => Box::new(Expr::Variable(s.clone())),
             Token::UnMinus => Box::new(Expr::UnOp(UnOp::Minus, parser.expression(self.lbp()))),
+            Token::UnNot => Box::new(Expr::UnOp(UnOp::Not, parser.expression(self.lbp()))),
             Token::LParen => {
                 let expr = parser.expression(self.lbp());
                 parser.skip_rparen();
@@ -90,7 +113,7 @@ impl Token {
 
     pub fn led(&self, parser: &mut Parser, lhs: Box<Expr>) -> Box<Expr> {
         match *self {
-            Token::Add | Token::Mul | Token::Sub | Token::Div | Token::Pow => {
+            Token::Add | Token::Mul | Token::Sub | Token::Div | Token::Pow | Token::Eq | Token::Neq | Token::Le | Token::Lt | Token::Ge | Token::Gt | Token::And | Token::Or => {
                 let lbp = if *self == Token::Pow { self.lbp() - 1 } else { self.lbp() };
                 let rhs = parser.expression(lbp);
                 let op = match *self {
@@ -99,6 +122,14 @@ impl Token {
                     Token::Sub => BinOp::Sub,
                     Token::Div => BinOp::Div,
                     Token::Pow => BinOp::Pow,
+                    Token::Or => BinOp::Or,
+                    Token::And => BinOp::And,
+                    Token::Eq => BinOp::Eq,
+                    Token::Neq => BinOp::NotEq,
+                    Token::Ge => BinOp::Ge,
+                    Token::Gt => BinOp::Gt,
+                    Token::Le => BinOp::Le,
+                    Token::Lt => BinOp::Lt,
                     _ => unreachable!()
                 };
                 Box::new(Expr::BinOp(lhs, op, rhs))

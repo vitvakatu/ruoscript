@@ -19,7 +19,7 @@ int = @{
 }
 
 float = @{
-    opt_sign ~ int ~ ("." ~ int ~ (^"e" ~ opt_sign ~ int)?)?
+    opt_sign ~ digit+ ~ "." ~ digit+ ~ (^"e" ~ opt_sign ~ digit+)?
 }
 
 bin_op = _{
@@ -54,7 +54,7 @@ term = _{
     primary | (lparen ~ bin_expr ~ rparen)
 }
 primary = _{
-    un_op? ~ (identifier | int | float)
+    un_op? ~ (identifier | float | int)
 }
 lparen = _{ "(" }
 rparen = _{ ")" }
