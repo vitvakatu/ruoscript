@@ -1,5 +1,5 @@
-use ast::{Expr, BinOp, UnOp};
-use pest::iterators::{Pairs, Pair};
+use ast::{BinOp, Expr, UnOp};
+use pest::iterators::{Pair, Pairs};
 use Rule;
 
 use std::iter::Peekable;
@@ -55,7 +55,7 @@ fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
                     Rule::op_le => Token::Le,
                     Rule::op_or => Token::Or,
                     Rule::op_and => Token::And,
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 tokens.push(token);
             }
@@ -113,8 +113,24 @@ impl Token {
 
     pub fn led(&self, parser: &mut Parser, lhs: Box<Expr>) -> Box<Expr> {
         match *self {
-            Token::Add | Token::Mul | Token::Sub | Token::Div | Token::Pow | Token::Eq | Token::Neq | Token::Le | Token::Lt | Token::Ge | Token::Gt | Token::And | Token::Or => {
-                let lbp = if *self == Token::Pow { self.lbp() - 1 } else { self.lbp() };
+            Token::Add
+            | Token::Mul
+            | Token::Sub
+            | Token::Div
+            | Token::Pow
+            | Token::Eq
+            | Token::Neq
+            | Token::Le
+            | Token::Lt
+            | Token::Ge
+            | Token::Gt
+            | Token::And
+            | Token::Or => {
+                let lbp = if *self == Token::Pow {
+                    self.lbp() - 1
+                } else {
+                    self.lbp()
+                };
                 let rhs = parser.expression(lbp);
                 let op = match *self {
                     Token::Add => BinOp::Add,
@@ -130,11 +146,11 @@ impl Token {
                     Token::Gt => BinOp::Gt,
                     Token::Le => BinOp::Le,
                     Token::Lt => BinOp::Lt,
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
                 Box::new(Expr::BinOp(lhs, op, rhs))
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -145,7 +161,9 @@ pub struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: Iter<'a, Token>) -> Self {
-        Self { tokens: tokens.peekable() }
+        Self {
+            tokens: tokens.peekable(),
+        }
     }
 
     pub fn skip_rparen(&mut self) {
@@ -157,7 +175,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn next_binds_tighter_than(&mut self, rbp: u32) -> bool {
-        self.tokens.peek().map_or(false, |t| { t.lbp() > rbp })
+        self.tokens.peek().map_or(false, |t| t.lbp() > rbp)
     }
 
     pub fn parse_nud(&mut self) -> Box<Expr> {

@@ -13,90 +13,78 @@ pub enum CmpOp {
     Eq,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum StorageVar {
+    Local(LocalVar),
+    User(Ident),
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
-    StoreInt {
-        to: LocalVar,
-        value: Int,
-    },
-    StoreFloat {
-        to: LocalVar,
-        value: Float,
-    },
-    StoreBool {
-        to: LocalVar,
-        value: Bool,
+    Store {
+        to: StorageVar,
+        value: Value,
     },
     Move {
-        to: LocalVar,
-        from: LocalVar,
+        to: StorageVar,
+        from: StorageVar,
     },
-    /*Jump {
-        cond: LocalVar,
-        to: Label,
-    },*/
     FunCall {
-        func: LocalVar,
-        arg: LocalVar,
-        result: LocalVar,
+        func: StorageVar,
+        arg: StorageVar,
+        result: StorageVar,
     },
     Add {
-        left: LocalVar,
-        right: LocalVar,
-        result: LocalVar,
+        left: StorageVar,
+        right: StorageVar,
+        result: StorageVar,
     },
     Sub {
-        left: LocalVar,
-        right: LocalVar,
-        result: LocalVar,
+        left: StorageVar,
+        right: StorageVar,
+        result: StorageVar,
     },
     Mul {
-        left: LocalVar,
-        right: LocalVar,
-        result: LocalVar,
+        left: StorageVar,
+        right: StorageVar,
+        result: StorageVar,
     },
     Div {
-        left: LocalVar,
-        right: LocalVar,
-        result: LocalVar,
+        left: StorageVar,
+        right: StorageVar,
+        result: StorageVar,
     },
     Pow {
-        left: LocalVar,
-        right: LocalVar,
-        result: LocalVar,
+        left: StorageVar,
+        right: StorageVar,
+        result: StorageVar,
     },
     UnaryMinus {
-        value: LocalVar,
-        result: LocalVar,
+        value: StorageVar,
+        result: StorageVar,
     },
     UnaryNot {
-        value: LocalVar,
-        result: LocalVar,
+        value: StorageVar,
+        result: StorageVar,
     },
     Cmp {
-        left: LocalVar,
-        right: LocalVar,
+        left: StorageVar,
+        right: StorageVar,
         cmp: CmpOp,
-        result: LocalVar,
+        result: StorageVar,
     },
     And {
-        left: LocalVar,
-        right: LocalVar,
-        result: LocalVar,
+        left: StorageVar,
+        right: StorageVar,
+        result: StorageVar,
     },
     Or {
-        left: LocalVar,
-        right: LocalVar,
-        result: LocalVar,
+        left: StorageVar,
+        right: StorageVar,
+        result: StorageVar,
     },
     Nop,
     Halt,
-}
-
-#[derive(Debug, Default)]
-struct VariableInfo {
-    pub ident: String,
-    pub var: LocalVar,
 }
 
 #[derive(Default)]
@@ -107,34 +95,37 @@ pub struct Storage {
 }
 
 impl Storage {
-    pub fn get_free(&mut self) -> LocalVar {
+    pub fn get_free(&mut self) -> StorageVar {
         let res = self.last;
         self.storage.push(Value::Int(0));
         self.last += 1;
-        res
+        StorageVar::Local(res)
     }
 
-    pub fn add_variable(&mut self, ident: String, var: LocalVar) {
-        self.variables.insert(ident, var);
+    pub fn store(&mut self, var: StorageVar, value: Value) {
+        match var {
+            StorageVar::Local(local) => {
+                self.storage[local] = value;
+            }
+            StorageVar::User(ident) => {
+                if let StorageVar::Local(var) = self.get_free() {
+                    self.storage[var] = value;
+                    self.variables.insert(ident, var);
+                } else {
+                    unreachable!()
+                }
+            }
+        }
     }
 
-    pub fn get_variable(&self, ident: &str) -> Option<LocalVar> {
-        self.variables.get(ident).cloned()
-    }
-
-    pub fn variables(&self) -> Vec<(String, Value)> {
-        self.variables
-            .iter()
-            .map(|(k, v)| (k.clone(), self.load(*v)))
-            .collect()
-    }
-
-    pub fn store(&mut self, var: LocalVar, value: Value) {
-        self.storage[var] = value;
-    }
-
-    pub fn load(&self, var: LocalVar) -> Value {
-        self.storage[var].clone()
+    pub fn load(&self, var: StorageVar) -> Value {
+        match var {
+            StorageVar::Local(local) => self.storage[local].clone(),
+            StorageVar::User(ident) => {
+                let var: LocalVar = *self.variables.get(&ident).unwrap();
+                self.storage[var].clone()
+            }
+        }
     }
 }
 
@@ -194,49 +185,50 @@ impl Command {
         let mut commands = Vec::new();
         stack.push((storage.get_free(), expr));
 
-        let mut step = 0;
         while let Some((res_var, expr)) = stack.pop() {
-            println!(
-                "Step: {}, commands: {:?}, stack: {:?}",
-                step, commands, stack
-            );
-            step += 1;
             match { *expr } {
                 Expr::Block(exprs) => {
-                    stack.extend(exprs.iter().rev().map(|e| (storage.get_free(), e.clone())));
+                    stack.extend(exprs.iter().map(|e| (storage.get_free(), e.clone())));
                 }
                 Expr::Int(value) => {
-                    let command = Command::StoreInt { to: res_var, value };
+                    let command = Command::Store {
+                        to: res_var,
+                        value: Value::Int(value),
+                    };
                     commands.push(command);
                 }
                 Expr::Float(value) => {
-                    let command = Command::StoreFloat { to: res_var, value };
+                    let command = Command::Store {
+                        to: res_var,
+                        value: Value::Float(value),
+                    };
                     commands.push(command);
                 }
                 Expr::Bool(value) => {
-                    let command = Command::StoreBool { to: res_var, value };
+                    let command = Command::Store {
+                        to: res_var,
+                        value: Value::Bool(value),
+                    };
                     commands.push(command);
                 }
                 Expr::Assign(ident, expr) => {
                     let var = storage.get_free();
-                    stack.push((var, expr.clone()));
-                    storage.add_variable(ident, var);
+                    stack.push((var.clone(), expr.clone()));
                     commands.push(Command::Move {
-                        to: res_var,
+                        to: StorageVar::User(ident.clone()),
                         from: var,
                     });
                 }
                 Expr::Variable(ident) => {
-                    let var = storage.get_variable(&ident).unwrap();
                     commands.push(Command::Move {
                         to: res_var,
-                        from: var,
+                        from: StorageVar::User(ident.clone()),
                     });
                 }
                 Expr::FunCall(ident, arg) => {
-                    let func = storage.get_variable(&ident).unwrap();
+                    let func = StorageVar::User(ident.clone());
                     let var = storage.get_free();
-                    stack.push((var, arg.clone()));
+                    stack.push((var.clone(), arg.clone()));
                     commands.push(Command::FunCall {
                         func,
                         arg: var,
@@ -245,7 +237,7 @@ impl Command {
                 }
                 Expr::UnOp(op, value) => {
                     let var = storage.get_free();
-                    stack.push((var, value.clone()));
+                    stack.push((var.clone(), value.clone()));
                     let command = match op {
                         UnOp::Not => Command::UnaryNot {
                             value: var,
@@ -261,8 +253,8 @@ impl Command {
                 Expr::BinOp(left, op, right) => {
                     let left_var = storage.get_free();
                     let right_var = storage.get_free();
-                    stack.push((left_var, left.clone()));
-                    stack.push((right_var, right.clone()));
+                    stack.push((left_var.clone(), left.clone()));
+                    stack.push((right_var.clone(), right.clone()));
                     let command = match op {
                         BinOp::Add => Command::Add {
                             left: left_var,
@@ -372,42 +364,26 @@ impl VM {
         self.current_command = 0;
     }
 
-    pub fn add_variable(&mut self, ident: &str, value: Value) {
-        let var = self.storage.get_free();
-        self.store(var, value);
-        self.storage.add_variable(ident.to_string(), var);
-    }
-
-    pub fn variables(&self) -> Vec<(String, Value)> {
-        self.storage.variables()
-    }
-
     pub fn parse_ast(&mut self, ast: Box<Expr>) {
         self.commands
-            .extend(&Command::commands_from_expr(ast, &mut self.storage));
+            .extend(Command::commands_from_expr(ast, &mut self.storage));
 
         println!("Commands received: {:?}", self.commands);
     }
 
-    pub fn store(&mut self, var: LocalVar, value: Value) {
+    pub fn store(&mut self, var: StorageVar, value: Value) {
         self.storage.store(var, value);
     }
 
-    pub fn load(&mut self, var: LocalVar) -> Value {
+    pub fn load(&mut self, var: StorageVar) -> Value {
         self.storage.load(var)
     }
 
-    pub fn execute(&mut self) -> Result<Value, ExecutionError> {
+    pub fn execute(&mut self) -> Result<(), ExecutionError> {
         while let Some(command) = self.commands.get(self.current_command).cloned() {
             match command {
-                Command::StoreInt { to, value } => {
-                    self.store(to, Value::Int(value));
-                }
-                Command::StoreFloat { to, value } => {
-                    self.store(to, Value::Float(value));
-                }
-                Command::StoreBool { to, value } => {
-                    self.store(to, Value::Bool(value));
+                Command::Store { to, value } => {
+                    self.store(to, value);
                 }
                 Command::Move { to, from } => {
                     let value = self.load(from);
@@ -590,6 +566,6 @@ impl VM {
             }
             self.current_command += 1;
         }
-        Ok(self.load(0))
+        Ok(())
     }
 }

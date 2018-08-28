@@ -10,10 +10,10 @@ mod vm;
 
 use pest::{
     iterators::{Pair, Pairs},
-    Parser as PestParser
+    Parser as PestParser,
 };
 
-use prec_climber::{Parser, tokenize};
+use prec_climber::{tokenize, Parser};
 use std::fs::File;
 use std::io::{self, Read};
 use std::str::FromStr;
@@ -21,6 +21,7 @@ use std::str::FromStr;
 use ast::BinOp;
 use ast::Expr;
 use value::Value;
+use vm::StorageVar;
 
 const _GRAMMAR: &str = include_str!("grammar.pest");
 
@@ -60,7 +61,7 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
             let arg = inner.next().unwrap();
             Box::new(Expr::FunCall(ident, to_ast(arg)))
         }
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
@@ -77,11 +78,9 @@ fn main() -> io::Result<()> {
     println!("Ast: {:#?}", ast);
 
     let mut vm = vm::VM::new();
-    vm.add_variable("print", Value::Function(print));
+    vm.store(StorageVar::User("print".to_string()), Value::Function(print));
     vm.parse_ast(ast);
     vm.execute();
-
-    println!("Variables: {:?}", vm.variables());
 
     Ok(())
 }

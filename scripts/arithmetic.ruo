@@ -1,2 +1,4 @@
-let variable = 1;
-print(variable);
+let a = 7;
+let b = a * 3 + a ^ 2;
+print(a);
+print(b);
