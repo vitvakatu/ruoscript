@@ -1,4 +1,5 @@
-let a = 2;
-print(a);
-a = 3;
-print(a);
+let a = 0;
+while a < 3 do
+    print(a);
+    a = a + 1;
+end

@@ -12,6 +12,7 @@ pub enum Expr {
     Assign(Ident, Box<Expr>),
     FunCall(Ident, Box<Expr>),
     Block(Vec<Box<Expr>>),
+    WhileLoop(Box<Expr>, Box<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 

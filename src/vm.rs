@@ -385,6 +385,28 @@ impl Command {
                 Expr::Empty => {
                     commands.push(Command::Nop);
                 }
+                Expr::WhileLoop(cond, code) => {
+                    // Label<start_label> Store<cond> Jmp<end_label> Block<code> Jmp<start_label> Label<end_label>
+                    // this should be in stack
+                    let cond_var = storage.get_free();
+                    let label_start = label;
+                    label += 1;
+                    let label_end = label;
+                    label += 1;
+                    stack.push(Stacked::Command(Command::Label {
+                        label: label_start
+                    }));
+                    stack.push(stacked_expr(cond_var.clone(), cond.clone()));
+                    stack.push(Stacked::Command(Command::Jmp {
+                        to: label_end,
+                        cond: cond_var,
+                    }));
+                    stack.push(stacked_expr(storage.get_free(), code.clone()));
+                    stack.push(Stacked::Command(Command::JmpU {
+                        to: label_start,
+                    }));
+                    stack.push(Stacked::Command(Command::Label { label: label_end }));
+                }
                 Expr::If(cond, pos, neg) => {
                     // Label<1> BlockFalse Label<0> JmpU<1> BlockTrue Jmp<0> Cond
                     // ^ this should be in commands

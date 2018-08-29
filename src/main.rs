@@ -61,6 +61,12 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
             let arg = inner.next().unwrap();
             Box::new(Expr::Assign(ident, to_ast(arg)))
         }
+        Rule::while_loop => {
+            let mut inner = pair.into_inner();
+            let cond = to_ast(inner.next().unwrap());
+            let code = to_ast(inner.next().unwrap());
+            Box::new(Expr::WhileLoop(cond, code))
+        }
         Rule::fun_call => {
             let mut inner = pair.into_inner();
             let ident = inner.next().unwrap().as_str().to_string();

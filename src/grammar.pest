@@ -7,7 +7,7 @@ code_block = {
 }
 
 statement = _{
-    (var_declaration | var_assign | expr) ~ ";"
+    (var_declaration | var_assign | expr) ~ ";" | while_loop
 }
 
 var_declaration = {
@@ -18,12 +18,16 @@ var_assign = {
     identifier ~ "=" ~ expr
 }
 
-fun_call = {
-    identifier ~ lparen ~ expr ~ rparen
+while_loop = {
+    "while" ~ expr ~ "do" ~ code_block ~ "end"
 }
 
 expr = _{
     (if_cond | fun_call | bin_expr)
+}
+
+fun_call = {
+    identifier ~ lparen ~ expr ~ rparen
 }
 
 if_cond = {
@@ -43,6 +47,10 @@ identifier = @{
 }
 
 keywords = {
+    "do" |
+    "end" |
+    "while" |
+    "let" |
     "true" |
     "false" |
     "and" |
