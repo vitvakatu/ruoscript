@@ -7,7 +7,7 @@ code_block = {
 }
 
 statement = _{
-    (var_assign | fun_call) ~ ";"
+    (var_assign | expr) ~ ";"
 }
 
 var_assign = {
@@ -19,7 +19,11 @@ fun_call = {
 }
 
 expr = _{
-    bin_expr
+    (if_cond | fun_call | bin_expr)
+}
+
+if_cond = {
+    "if" ~ expr ~ "then" ~ code_block ~ ("else" ~ code_block)? ~ "end"
 }
 
 digit = {
@@ -39,9 +43,7 @@ keywords = {
     "false" |
     "and" |
     "or" |
-    "not" |
-    "if" |
-    "else"
+    "not"
 }
 
 opt_sign = _{

@@ -29,6 +29,16 @@ pub enum Command {
         to: StorageVar,
         from: StorageVar,
     },
+    Label {
+        label: Label,
+    },
+    Jmp {
+        cond: StorageVar,
+        to: Label,
+    },
+    JmpU {
+        to: Label,
+    },
     FunCall {
         func: StorageVar,
         arg: StorageVar,
@@ -173,22 +183,52 @@ FunCall<#0, #4, #3>
 */
 
 /*
+Blocks
+let a = 1;
+let b = 2;
+Block[Assign<Var<a>, Int<1>>, Assign<Var<b>, Int<2>>]
+1. Block[...]                       c:
+2. Assign<Var<a>>, Assign<Var<b>>   c:
+4.                                  c: Assign<Var<b>> Assign<Var<a>>
+*/
+
+/*
 Conditions:
 if <test> then <then_branch> else <else_branch> end
-if x then y else z end
-
+if true then print(1) else print(2) end;
+Expected: Store<#3, true> Jmp<#3, 0> Store<#2, 1> FunCall<print, #2> JmpU<1> Label<0> Store<#1, 2> FunCall<print, #1> Label<1>
+Cond Jmp<0> BlockTrue JmpU<1> Label<0> BlockFalse Label<1>
+Reversed: Label<1> BlockFalse Label<0> JmpU<1> BlockTrue Jmp<0> Cond <- this should be in commands
 */
+
+#[derive(Debug, Clone)]
+enum Stacked {
+    Command(Command),
+    Expr((StorageVar, Box<Expr>))
+}
+
+fn stacked_expr(var: StorageVar, expr: Box<Expr>) -> Stacked {
+    Stacked::Expr((var, expr))
+}
 
 impl Command {
     pub fn commands_from_expr(expr: Box<Expr>, storage: &mut Storage) -> Vec<Command> {
-        let mut stack = Vec::new();
-        let mut commands = Vec::new();
-        stack.push((storage.get_free(), expr));
+        let mut stack: Vec<Stacked> = Vec::new();
+        let mut commands: Vec<Command> = Vec::new();
+        let mut label = 0;
+        stack.push(stacked_expr(storage.get_free(), expr));
 
-        while let Some((res_var, expr)) = stack.pop() {
+        while let Some(stacked) = stack.pop() {
+            let (res_var, expr) = match stacked {
+                Stacked::Expr((var, expr)) => (var, expr),
+                Stacked::Command(command) => {
+                    commands.push(command);
+                    continue;
+                }
+            };
             match { *expr } {
                 Expr::Block(exprs) => {
-                    stack.extend(exprs.iter().map(|e| (storage.get_free(), e.clone())));
+                    stack.extend(exprs.iter().map(|e| stacked_expr(storage.get_free(), e.clone())));
                 }
                 Expr::Int(value) => {
                     let command = Command::Store {
@@ -213,7 +253,7 @@ impl Command {
                 }
                 Expr::Assign(ident, expr) => {
                     let var = storage.get_free();
-                    stack.push((var.clone(), expr.clone()));
+                    stack.push(stacked_expr(var.clone(), expr.clone()));
                     commands.push(Command::Move {
                         to: StorageVar::User(ident.clone()),
                         from: var,
@@ -228,7 +268,7 @@ impl Command {
                 Expr::FunCall(ident, arg) => {
                     let func = StorageVar::User(ident.clone());
                     let var = storage.get_free();
-                    stack.push((var.clone(), arg.clone()));
+                    stack.push(stacked_expr(var.clone(), arg.clone()));
                     commands.push(Command::FunCall {
                         func,
                         arg: var,
@@ -237,7 +277,7 @@ impl Command {
                 }
                 Expr::UnOp(op, value) => {
                     let var = storage.get_free();
-                    stack.push((var.clone(), value.clone()));
+                    stack.push(stacked_expr(var.clone(), value.clone()));
                     let command = match op {
                         UnOp::Not => Command::UnaryNot {
                             value: var,
@@ -253,8 +293,8 @@ impl Command {
                 Expr::BinOp(left, op, right) => {
                     let left_var = storage.get_free();
                     let right_var = storage.get_free();
-                    stack.push((left_var.clone(), left.clone()));
-                    stack.push((right_var.clone(), right.clone()));
+                    stack.push(stacked_expr(left_var.clone(), left.clone()));
+                    stack.push(stacked_expr(right_var.clone(), right.clone()));
                     let command = match op {
                         BinOp::Add => Command::Add {
                             left: left_var,
@@ -333,7 +373,25 @@ impl Command {
                 Expr::Empty => {
                     commands.push(Command::Nop);
                 }
-                Expr::If(_, _, _) => unimplemented!(),
+                Expr::If(cond, pos, neg) => {
+                    // Label<1> BlockFalse Label<0> JmpU<1> BlockTrue Jmp<0> Cond
+                    // ^ this should be in commands
+                    let cond_var = storage.get_free();
+                    let label_false = label;
+                    label += 1;
+                    let label_true = label;
+                    label += 1;
+                    stack.push(stacked_expr(cond_var.clone(), cond.clone()));
+                    stack.push(Stacked::Command(Command::Jmp {
+                        cond: cond_var,
+                        to: label_false,
+                    }));
+                    stack.push(stacked_expr(storage.get_free(), pos.clone()));
+                    stack.push(Stacked::Command(Command::JmpU { to: label_true }));
+                    stack.push(Stacked::Command(Command::Label { label: label_false }));
+                    stack.push(stacked_expr(storage.get_free(), neg.clone()));
+                    stack.push(Stacked::Command(Command::Label { label: label_true }));
+                }
             }
         }
 
@@ -384,6 +442,12 @@ impl VM {
     }
 
     pub fn execute(&mut self) -> Result<(), ExecutionError> {
+        let mut labels: HashMap<Label, usize> = HashMap::new();
+        for (index, command) in self.commands.iter().enumerate() {
+            if let Command::Label { label } = command {
+                labels.insert(*label, index);
+            }
+        }
         while let Some(command) = self.commands.get(self.current_command).cloned() {
             match command {
                 Command::Store { to, value } => {
@@ -565,6 +629,17 @@ impl VM {
                         _ => unreachable!(),
                     }
                 }
+                Command::Jmp { to, cond } => {
+                    if let Value::Bool(false) = self.load(cond) {
+                        self.current_command = *labels.get(&to).unwrap();
+                        continue;
+                    }
+                }
+                Command::JmpU { to } => {
+                    self.current_command = *labels.get(&to).unwrap();
+                    continue;
+                }
+                Command::Label { .. } => {}
                 Command::Nop => {}
                 Command::Halt => break,
             }

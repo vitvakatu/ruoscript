@@ -61,6 +61,13 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
             let arg = inner.next().unwrap();
             Box::new(Expr::FunCall(ident, to_ast(arg)))
         }
+        Rule::if_cond => {
+            let mut inner = pair.into_inner();
+            let cond = to_ast(inner.next().unwrap());
+            let pos = to_ast(inner.next().unwrap());
+            let neg = inner.next().map(|p| to_ast(p)).unwrap_or(Box::new(Expr::Empty));
+            Box::new(Expr::If(cond, pos, neg))
+        }
         _ => unreachable!(),
     }
 }
