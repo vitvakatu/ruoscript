@@ -1,0 +1,11 @@
+let f0 = 0;
+let f1 = 1;
+
+let n = 0;
+while n < 10 do
+    let fib = f0 + f1;
+    f0 = f1;
+    f1 = fib;
+    print(fib);
+    n = n + 1;
+end
