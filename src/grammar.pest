@@ -7,11 +7,15 @@ code_block = {
 }
 
 statement = _{
-    (var_assign | expr) ~ ";"
+    (var_declaration | var_assign | expr) ~ ";"
+}
+
+var_declaration = {
+    "let" ~ identifier ~ "=" ~ expr
 }
 
 var_assign = {
-    "let" ~ identifier ~ "=" ~ expr
+    identifier ~ "=" ~ expr
 }
 
 fun_call = {

@@ -1,1 +1,4 @@
-if false then print(1) else print(2) end;
+let a = 2;
+print(a);
+a = 3;
+print(a);

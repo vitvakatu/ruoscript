@@ -201,6 +201,18 @@ Cond Jmp<0> BlockTrue JmpU<1> Label<0> BlockFalse Label<1>
 Reversed: Label<1> BlockFalse Label<0> JmpU<1> BlockTrue Jmp<0> Cond <- this should be in commands
 */
 
+/*
+While loop:
+while <cond> do <code> end
+Expected:
+Label<start_label>
+Store<cond>
+Jmp<end_label>
+Block<code>
+Jmp<start_label>
+Label<end_label>
+*/
+
 #[derive(Debug, Clone)]
 enum Stacked {
     Command(Command),
