@@ -4,9 +4,9 @@ extern crate pest_derive;
 
 mod ast;
 mod prec_climber;
+mod stack;
 mod types;
 mod value;
-mod stack;
 mod vm;
 
 use pest::{
@@ -15,10 +15,10 @@ use pest::{
 };
 
 use prec_climber::{tokenize, Parser};
+use std::env;
 use std::fs::File;
 use std::io::{self, Read};
 use std::str::FromStr;
-use std::env;
 
 use ast::BinOp;
 use ast::Expr;
@@ -85,7 +85,10 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
             let mut inner = pair.into_inner();
             let cond = to_ast(inner.next().unwrap());
             let pos = to_ast(inner.next().unwrap());
-            let neg = inner.next().map(|p| to_ast(p)).unwrap_or(Box::new(Expr::Empty));
+            let neg = inner
+                .next()
+                .map(|p| to_ast(p))
+                .unwrap_or(Box::new(Expr::Empty));
             Box::new(Expr::If(cond, pos, neg))
         }
         _ => unreachable!(),
@@ -94,7 +97,9 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
 
 fn main() -> io::Result<()> {
     let mut input = String::new();
-    let filename = env::args().nth(1).unwrap_or("scripts/arithmetic.ruo".to_string());
+    let filename = env::args()
+        .nth(1)
+        .unwrap_or("scripts/arithmetic.ruo".to_string());
     println!("Parsing file: {}", filename);
     let mut file = File::open(filename)?.read_to_string(&mut input)?;
 

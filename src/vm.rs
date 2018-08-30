@@ -1,10 +1,10 @@
 use ast::{BinOp, Expr, UnOp};
+use stack::Stack;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use types::*;
 use value::Value;
-use std::rc::Rc;
-use std::cell::RefCell;
-use stack::Stack;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CmpOp {
@@ -121,7 +121,8 @@ pub struct EnvironmentData {
 impl EnvironmentData {
     pub fn new(outer: Option<Environment>) -> Self {
         Self {
-            outer, .. Default::default()
+            outer,
+            ..Default::default()
         }
     }
 
@@ -150,14 +151,14 @@ impl EnvironmentData {
         }
     }
 
-    pub fn get(&self, key: String) -> LocalVar {
+    pub fn get(&self, key: String) -> Option<LocalVar> {
         match self.variables.get(&key) {
-            Some(v) =>  v.clone(),
+            Some(v) => Some(v.clone()),
             None => {
                 if let Some(env) = self.find(key.clone()) {
                     env.borrow().get(key)
                 } else {
-                    panic!("No value with name '{}' in current scope", key);
+                    None
                 }
             }
         }
@@ -216,12 +217,16 @@ impl Storage {
                 self.storage[local] = value;
             }
             StorageVar::User(ident) => {
-                if let StorageVar::Local(var) = self.get_free() {
-                    self.storage[var] = value;
-                    self.environment.borrow_mut().set(ident, var);
+                let var = self.environment.borrow().get(ident.clone());
+                let var = if let Some(var) = var {
+                    var
                 } else {
-                    unreachable!()
-                }
+                    if let StorageVar::Local(var) = self.get_free() {
+                        var
+                    } else { unreachable!() }
+                };
+                self.environment.borrow_mut().set(ident.clone(), var);
+                self.storage[var] = value;
             }
         }
     }
@@ -230,7 +235,7 @@ impl Storage {
         match var {
             StorageVar::Local(local) => self.storage[local].clone(),
             StorageVar::User(ident) => {
-                let var: LocalVar = self.environment.borrow().get(ident);
+                let var: LocalVar = self.environment.borrow().get(ident).unwrap();
                 self.storage[var].clone()
             }
         }
@@ -340,7 +345,7 @@ JmpU<fun_label>
 #[derive(Debug, Clone)]
 enum Stacked {
     Command(Command),
-    Expr((StorageVar, Box<Expr>))
+    Expr((StorageVar, Box<Expr>)),
 }
 
 fn stacked_expr(var: StorageVar, expr: Box<Expr>) -> Stacked {
@@ -370,7 +375,10 @@ impl Command {
                         last_var = storage.get_free();
                         stacked_expr(last_var.clone(), e.clone())
                     }));
-                    stack.push(Stacked::Command(Command::Move { from: last_var, to: res_var }));
+                    stack.push(Stacked::Command(Command::Move {
+                        from: last_var,
+                        to: res_var,
+                    }));
                     stack.push(Stacked::Command(Command::ScopeEnd));
                 }
                 Expr::Int(value) => {
@@ -429,24 +437,36 @@ impl Command {
                             stack.push(Stacked::Command(Command::Push { from: var }));
                         }
                         stack.push(Stacked::Command(Command::LabelReturn));
-                        stack.push(Stacked::Command(Command::JmpU { to: Label::Function(ident.clone(), false) }));
+                        stack.push(Stacked::Command(Command::JmpU {
+                            to: Label::Function(ident.clone(), false),
+                        }));
                         stack.push(Stacked::Command(Command::Pop { to: res_var }));
                     }
                 }
                 Expr::FunDecl(ident, args, body) => {
                     let end_label = Label::Direct(label);
                     label += 1;
-                    stack.push(Stacked::Command(Command::JmpU { to: end_label.clone() }));
-                    stack.push(Stacked::Command(Command::Label { label: Label::Function(ident, true) }));
+                    stack.push(Stacked::Command(Command::JmpU {
+                        to: end_label.clone(),
+                    }));
+                    stack.push(Stacked::Command(Command::Label {
+                        label: Label::Function(ident, true),
+                    }));
                     stack.push(Stacked::Command(Command::ScopeStart));
                     for arg in args {
-                        stack.push(Stacked::Command(Command::Pop { to: StorageVar::User(arg.clone()) }));
+                        stack.push(Stacked::Command(Command::Pop {
+                            to: StorageVar::User(arg.clone()),
+                        }));
                     }
                     stack.push(stacked_expr(res_var.clone(), body.clone()));
-                    stack.push(Stacked::Command(Command::Push { from: res_var.clone() }));
+                    stack.push(Stacked::Command(Command::Push {
+                        from: res_var.clone(),
+                    }));
                     stack.push(Stacked::Command(Command::ScopeEnd));
                     stack.push(Stacked::Command(Command::JmpReturn));
-                    stack.push(Stacked::Command(Command::Label { label: end_label.clone() }));
+                    stack.push(Stacked::Command(Command::Label {
+                        label: end_label.clone(),
+                    }));
                 }
                 Expr::UnOp(op, value) => {
                     let var = storage.get_free();
@@ -555,7 +575,7 @@ impl Command {
                     let label_end = label;
                     label += 1;
                     stack.push(Stacked::Command(Command::Label {
-                        label: Label::Direct(label_start)
+                        label: Label::Direct(label_start),
                     }));
                     stack.push(stacked_expr(cond_var.clone(), cond.clone()));
                     stack.push(Stacked::Command(Command::Jmp {
@@ -566,7 +586,9 @@ impl Command {
                     stack.push(Stacked::Command(Command::JmpU {
                         to: Label::Direct(label_start),
                     }));
-                    stack.push(Stacked::Command(Command::Label { label: Label::Direct(label_end) }));
+                    stack.push(Stacked::Command(Command::Label {
+                        label: Label::Direct(label_end),
+                    }));
                 }
                 Expr::If(cond, pos, neg) => {
                     // Label<1> BlockFalse Label<0> JmpU<1> BlockTrue Jmp<0> Cond
@@ -582,10 +604,16 @@ impl Command {
                         to: Label::Direct(label_false),
                     }));
                     stack.push(stacked_expr(storage.get_free(), pos.clone()));
-                    stack.push(Stacked::Command(Command::JmpU { to: Label::Direct(label_true) }));
-                    stack.push(Stacked::Command(Command::Label { label: Label::Direct(label_false) }));
+                    stack.push(Stacked::Command(Command::JmpU {
+                        to: Label::Direct(label_true),
+                    }));
+                    stack.push(Stacked::Command(Command::Label {
+                        label: Label::Direct(label_false),
+                    }));
                     stack.push(stacked_expr(storage.get_free(), neg.clone()));
-                    stack.push(Stacked::Command(Command::Label { label: Label::Direct(label_true) }));
+                    stack.push(Stacked::Command(Command::Label {
+                        label: Label::Direct(label_true),
+                    }));
                 }
             }
         }
@@ -663,7 +691,11 @@ impl VM {
                     let value = self.load(from);
                     self.store(to, value);
                 }
-                Command::NativeFunCall { func, arg_count, result } => {
+                Command::NativeFunCall {
+                    func,
+                    arg_count,
+                    result,
+                } => {
                     let function = self.load(func);
                     match function {
                         Value::Function(f) => {

@@ -1,8 +1,8 @@
-use types::{Bool, Float, Int, Type};
 use stack::Stack;
+use types::{Bool, Float, Int, Type};
 
-use std::fmt;
 use std::cmp::Ordering;
+use std::fmt;
 
 #[derive(Clone)]
 pub enum Value {
