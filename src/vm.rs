@@ -2,6 +2,8 @@ use ast::{BinOp, Expr, UnOp};
 use std::collections::HashMap;
 use types::*;
 use value::Value;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CmpOp {
@@ -39,6 +41,8 @@ pub enum Command {
     JmpU {
         to: Label,
     },
+    ScopeStart,
+    ScopeEnd,
     FunCall {
         func: StorageVar,
         arg: StorageVar,
@@ -97,11 +101,65 @@ pub enum Command {
     Halt,
 }
 
+pub type Environment = Rc<RefCell<EnvironmentData>>;
+
+#[derive(Clone, Debug, PartialEq, Default)]
+pub struct EnvironmentData {
+    variables: HashMap<String, LocalVar>,
+    pub outer: Option<Environment>,
+}
+
+impl EnvironmentData {
+    pub fn new(outer: Option<Environment>) -> Self {
+        Self {
+            outer, .. Default::default()
+        }
+    }
+
+    pub fn top(env: &Environment) -> Environment {
+        match env.borrow().outer {
+            Some(ref e) => EnvironmentData::top(e),
+            None => env.clone(),
+        }
+    }
+
+    pub fn set(&mut self, ident: Ident, var: LocalVar) {
+        self.variables.insert(ident, var);
+    }
+
+    pub fn find(&self, key: String) -> Option<Environment> {
+        if self.variables.contains_key(&key) {
+            Some(Rc::new(RefCell::new(self.clone())))
+        } else {
+            match self.outer {
+                Some(ref outer) => {
+                    let outer = outer.borrow();
+                    outer.find(key)
+                }
+                None => None,
+            }
+        }
+    }
+
+    pub fn get(&self, key: String) -> LocalVar {
+        match self.variables.get(&key) {
+            Some(v) =>  v.clone(),
+            None => {
+                if let Some(env) = self.find(key.clone()) {
+                    env.borrow().get(key)
+                } else {
+                    panic!("No value with name '{}' in current scope", key);
+                }
+            }
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Storage {
     storage: Vec<Value>,
     last: LocalVar,
-    variables: HashMap<String, LocalVar>,
+    environment: Environment,
 }
 
 impl Storage {
@@ -120,7 +178,7 @@ impl Storage {
             StorageVar::User(ident) => {
                 if let StorageVar::Local(var) = self.get_free() {
                     self.storage[var] = value;
-                    self.variables.insert(ident, var);
+                    self.environment.borrow_mut().set(ident, var);
                 } else {
                     unreachable!()
                 }
@@ -132,9 +190,22 @@ impl Storage {
         match var {
             StorageVar::Local(local) => self.storage[local].clone(),
             StorageVar::User(ident) => {
-                let var: LocalVar = *self.variables.get(&ident).unwrap();
+                let var: LocalVar = self.environment.borrow().get(ident);
                 self.storage[var].clone()
             }
+        }
+    }
+
+    pub fn scope_start(&mut self) {
+        let outer = Rc::clone(&self.environment);
+        let data = EnvironmentData::new(Some(outer));
+        self.environment = Rc::new(RefCell::new(data));
+    }
+
+    pub fn scope_end(&mut self) {
+        if self.environment.borrow().outer.is_some() {
+            let outer = Rc::clone(self.environment.borrow().outer.as_ref().unwrap());
+            self.environment = outer;
         }
     }
 }
@@ -240,7 +311,9 @@ impl Command {
             };
             match { *expr } {
                 Expr::Block(exprs) => {
+                    stack.push(Stacked::Command(Command::ScopeStart));
                     stack.extend(exprs.iter().map(|e| stacked_expr(storage.get_free(), e.clone())));
+                    stack.push(Stacked::Command(Command::ScopeEnd));
                 }
                 Expr::Int(value) => {
                     let command = Command::Store {
@@ -674,6 +747,12 @@ impl VM {
                     continue;
                 }
                 Command::Label { .. } => {}
+                Command::ScopeStart => {
+                    self.storage.scope_start();
+                }
+                Command::ScopeEnd => {
+                    self.storage.scope_end();
+                }
                 Command::Nop => {}
                 Command::Halt => break,
             }

@@ -7,7 +7,7 @@ code_block = {
 }
 
 statement = _{
-    (var_declaration | var_assign | (expr ~ ";") | while_loop)
+    (var_declaration | var_assign | (expr ~ ";") | while_loop | if_cond)
 }
 
 var_declaration = {
@@ -47,6 +47,8 @@ identifier = @{
 }
 
 keywords = {
+    "if" |
+    "else" |
     "while" |
     "true" |
     "false" |

@@ -86,7 +86,7 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
 
 fn main() -> io::Result<()> {
     let mut input = String::new();
-    let filename = env::args().nth(1).unwrap_or("scripts/fibonacci.ruo".to_string());
+    let filename = env::args().nth(1).unwrap_or("scripts/arithmetic.ruo".to_string());
     println!("Parsing file: {}", filename);
     let mut file = File::open(filename)?.read_to_string(&mut input)?;
 
