@@ -419,7 +419,7 @@ impl Command {
                 Expr::FunCall(ident, args) => {
                     if let Some(func) = storage.get_native_function(ident.clone()) {
                         let mut arg_count = 0;
-                        for arg in args {
+                        for arg in args.iter().rev() {
                             let var = storage.get_free();
                             stack.push(stacked_expr(var.clone(), arg.clone()));
                             stack.push(Stacked::Command(Command::Push { from: var }));
@@ -431,7 +431,7 @@ impl Command {
                             result: res_var,
                         });
                     } else {
-                        for arg in args {
+                        for arg in args.iter().rev() {
                             let var = storage.get_free();
                             stack.push(stacked_expr(var.clone(), arg.clone()));
                             stack.push(Stacked::Command(Command::Push { from: var }));
