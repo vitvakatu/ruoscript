@@ -1,5 +1,6 @@
-let a = 0;
-while a < 3 do
-    print(a);
-    a = a + 1;
-end
+a := 300 * 32 - 2;
+b := 30 / 2 ^ 2;
+c := a + b - (a ^ 2);
+print(a);
+print(b);
+print(c);

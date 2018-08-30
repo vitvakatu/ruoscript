@@ -17,6 +17,7 @@ use prec_climber::{tokenize, Parser};
 use std::fs::File;
 use std::io::{self, Read};
 use std::str::FromStr;
+use std::env;
 
 use ast::BinOp;
 use ast::Expr;
@@ -35,7 +36,6 @@ fn print(value: Value) -> Value {
 }
 
 fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
-    println!("{:?}", pair);
     match pair.as_rule() {
         Rule::code_block => {
             let mut exprs = Vec::new();
@@ -86,7 +86,9 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
 
 fn main() -> io::Result<()> {
     let mut input = String::new();
-    let mut file = File::open("scripts/arithmetic.ruo")?.read_to_string(&mut input)?;
+    let filename = env::args().nth(1).unwrap_or("scripts/fibonacci.ruo".to_string());
+    println!("Parsing file: {}", filename);
+    let mut file = File::open(filename)?.read_to_string(&mut input)?;
 
     let ast = RuoParser::parse(Rule::program, &input)
         .unwrap()

@@ -7,19 +7,19 @@ code_block = {
 }
 
 statement = _{
-    (var_declaration | var_assign | expr) ~ ";" | while_loop
+    (var_declaration | var_assign | (expr ~ ";") | while_loop)
 }
 
 var_declaration = {
-    "let" ~ identifier ~ "=" ~ expr
+    identifier ~ ":=" ~ expr ~ ";"
 }
 
 var_assign = {
-    identifier ~ "=" ~ expr
+    identifier ~ "=" ~ expr ~ ";"
 }
 
 while_loop = {
-    "while" ~ expr ~ "do" ~ code_block ~ "end"
+    "while" ~ expr ~ lcurly ~ code_block ~ rcurly
 }
 
 expr = _{
@@ -31,7 +31,7 @@ fun_call = {
 }
 
 if_cond = {
-    "if" ~ expr ~ "then" ~ code_block ~ ("else" ~ code_block)? ~ "end"
+    "if" ~ expr ~ lcurly ~ code_block ~ rcurly ~ ("else" ~ lcurly ~ code_block ~ rcurly)?
 }
 
 digit = {
@@ -47,10 +47,7 @@ identifier = @{
 }
 
 keywords = {
-    "do" |
-    "end" |
     "while" |
-    "let" |
     "true" |
     "false" |
     "and" |
@@ -110,6 +107,8 @@ primary = _{
 }
 lparen = _{ "(" }
 rparen = _{ ")" }
+lcurly = _{ "{" }
+rcurly = _{ "}" }
 
 
 whitespace = _{ " " | "\t" | "\n" }
