@@ -1,15 +1,22 @@
 -- Some comment
---a := 300 * 32 - 2;
+a := 300 * 32 - 2;
 -- Another one
---b := 30 / 2 ^ 2; -- And one more
---c := a + b - (a ^ 2);
---print(a);
---print(b);
---print(c);
+b := 30 / 2 ^ 2; -- And one more
+c := a + b - (a ^ 2);
+print(a);
+print(b);
+print(c);
 
+-- This is function
 def sum(a, b) {
     a + b
 }
 
+-- And this is too
+def complex_function(a, b) {
+    a * sum(a, b)
+}
+
 c := sum(1, 2);
 print(c);
+print(complex_function(3, 4));

@@ -118,7 +118,7 @@ term = _{
     primary | (lparen ~ bin_expr ~ rparen)
 }
 primary = _{
-    un_op? ~ (identifier | boolean | float | int)
+    un_op? ~ (fun_call | identifier | boolean | float | int)
 }
 lparen = _{ "(" }
 rparen = _{ ")" }

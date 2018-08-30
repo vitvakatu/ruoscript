@@ -4,6 +4,7 @@ use Rule;
 
 use std::iter::Peekable;
 use std::slice::Iter;
+use to_ast;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
@@ -28,6 +29,7 @@ pub enum Token {
     Float(f64),
     Bool(bool),
     Literal(String),
+    FunCall(String, Vec<Box<Expr>>),
 }
 
 fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
@@ -42,6 +44,12 @@ fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
                     Rule::float => Token::Float(pair.as_str().parse().unwrap()),
                     Rule::boolean => Token::Bool(pair.as_str().parse().unwrap()),
                     Rule::identifier => Token::Literal(pair.as_str().to_string()),
+                    Rule::fun_call => {
+                        let mut inner = pair.into_inner();
+                        let ident = inner.next().unwrap().as_str().to_string();
+                        let args = inner.map(to_ast).collect();
+                        Token::FunCall(ident, args)
+                    },
                     Rule::op_add => Token::Add,
                     Rule::op_mul => Token::Mul,
                     Rule::op_sub => Token::Sub,
@@ -103,6 +111,7 @@ impl Token {
             Token::Float(f) => Box::new(Expr::Float(f)),
             Token::Bool(b) => Box::new(Expr::Bool(b)),
             Token::Literal(ref s) => Box::new(Expr::Variable(s.clone())),
+            Token::FunCall(ref ident, ref args) => Box::new(Expr::FunCall(ident.clone(), args.clone())),
             Token::UnMinus => Box::new(Expr::UnOp(UnOp::Minus, parser.expression(self.lbp()))),
             Token::UnNot => Box::new(Expr::UnOp(UnOp::Not, parser.expression(self.lbp()))),
             Token::LParen => {
