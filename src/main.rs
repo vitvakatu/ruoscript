@@ -6,6 +6,7 @@ mod ast;
 mod prec_climber;
 mod types;
 mod value;
+mod stack;
 mod vm;
 
 use pest::{
@@ -30,11 +31,6 @@ const _GRAMMAR: &str = include_str!("grammar.pest");
 #[grammar = "grammar.pest"]
 pub struct RuoParser;
 
-fn print(value: Value) -> Value {
-    println!("{:?}", value);
-    Value::Empty
-}
-
 fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
     match pair.as_rule() {
         Rule::code_block => {
@@ -49,7 +45,7 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
             let mut parser = Parser::new(tokens.iter());
             parser.expression(0)
         }
-        Rule::var_declaration => {
+        Rule::var_decl => {
             let mut inner = pair.into_inner();
             let ident = inner.next().unwrap().as_str().to_string();
             let arg = inner.next().unwrap();
@@ -70,8 +66,20 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
         Rule::fun_call => {
             let mut inner = pair.into_inner();
             let ident = inner.next().unwrap().as_str().to_string();
-            let arg = inner.next().unwrap();
-            Box::new(Expr::FunCall(ident, to_ast(arg)))
+            let args = inner.map(to_ast).collect();
+            Box::new(Expr::FunCall(ident, args))
+        }
+        Rule::fun_decl => {
+            let mut inner = pair.into_inner();
+            let ident = inner.next().unwrap().as_str().to_string();
+            let mut body = inner.next().unwrap();
+            let mut args = Vec::new();
+            while let Some(pair) = inner.next() {
+                args.push(body.clone());
+                body = pair.clone();
+            }
+            let args = args.into_iter().map(|p| p.as_str().to_string()).collect();
+            Box::new(Expr::FunDecl(ident, args, to_ast(body)))
         }
         Rule::if_cond => {
             let mut inner = pair.into_inner();
@@ -99,7 +107,6 @@ fn main() -> io::Result<()> {
     println!("Ast: {:#?}", ast);
 
     let mut vm = vm::VM::new();
-    vm.store(StorageVar::User("print".to_string()), Value::Function(print));
     vm.parse_ast(ast);
     vm.execute();
 

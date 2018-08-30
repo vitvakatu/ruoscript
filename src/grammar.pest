@@ -7,10 +7,18 @@ code_block = {
 }
 
 statement = _{
-    (var_declaration | var_assign | (expr ~ ";") | while_loop | if_cond)
+    (fun_decl | var_decl | var_assign | (expr ~ ";") | while_loop | if_cond)
 }
 
-var_declaration = {
+fun_decl = {
+    "def" ~ identifier ~ lparen ~ arg_list ~ rparen ~ lcurly ~ code_block ~ rcurly
+}
+
+arg_list = _{
+    identifier ~ ("," ~ identifier)* ~ ","?
+}
+
+var_decl = {
     identifier ~ ":=" ~ expr ~ ";"
 }
 
@@ -27,7 +35,11 @@ expr = _{
 }
 
 fun_call = {
-    identifier ~ lparen ~ expr ~ rparen
+    identifier ~ lparen ~ call_arg_list ~ rparen
+}
+
+call_arg_list = _{
+    expr? ~ ("," ~ expr)* ~ ","?
 }
 
 if_cond = {
@@ -47,6 +59,7 @@ identifier = @{
 }
 
 keywords = {
+    "def" |
     "if" |
     "else" |
     "while" |

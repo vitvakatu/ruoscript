@@ -4,6 +4,7 @@ use types::*;
 use value::Value;
 use std::rc::Rc;
 use std::cell::RefCell;
+use stack::Stack;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CmpOp {
@@ -31,6 +32,12 @@ pub enum Command {
         to: StorageVar,
         from: StorageVar,
     },
+    Push {
+        from: StorageVar,
+    },
+    Pop {
+        to: StorageVar,
+    },
     Label {
         label: Label,
     },
@@ -41,11 +48,13 @@ pub enum Command {
     JmpU {
         to: Label,
     },
+    JmpReturn,
+    LabelReturn,
     ScopeStart,
     ScopeEnd,
-    FunCall {
+    NativeFunCall {
         func: StorageVar,
-        arg: StorageVar,
+        arg_count: u8,
         result: StorageVar,
     },
     Add {
@@ -155,19 +164,50 @@ impl EnvironmentData {
     }
 }
 
-#[derive(Default)]
 pub struct Storage {
     storage: Vec<Value>,
     last: LocalVar,
+    stack: Stack,
     environment: Environment,
+    native_functions: HashMap<Ident, StorageVar>,
+}
+
+impl Default for Storage {
+    fn default() -> Self {
+        let mut res = Self {
+            storage: Vec::new(),
+            last: 0,
+            stack: Stack::default(),
+            environment: Environment::default(),
+            native_functions: HashMap::new(),
+        };
+        res.init_native_functions();
+        res
+    }
+}
+
+fn print(stack: &mut Stack, arg_count: u8) {
+    for _ in 0..arg_count {
+        println!("{:?}", stack.pop());
+    }
 }
 
 impl Storage {
+    pub fn init_native_functions(&mut self) {
+        let var = self.get_free();
+        self.store(var.clone(), Value::Function(print));
+        self.native_functions.insert("print".to_string(), var);
+    }
+
     pub fn get_free(&mut self) -> StorageVar {
         let res = self.last;
         self.storage.push(Value::Int(0));
         self.last += 1;
         StorageVar::Local(res)
+    }
+
+    pub fn stack_mut(&mut self) -> &mut Stack {
+        &mut self.stack
     }
 
     pub fn store(&mut self, var: StorageVar, value: Value) {
@@ -194,6 +234,18 @@ impl Storage {
                 self.storage[var].clone()
             }
         }
+    }
+
+    pub fn push(&mut self, value: Value) {
+        self.stack.push(value);
+    }
+
+    pub fn pop(&mut self) -> Value {
+        self.stack.pop()
+    }
+
+    pub fn get_native_function(&self, ident: String) -> Option<StorageVar> {
+        self.native_functions.get(&ident).cloned()
     }
 
     pub fn scope_start(&mut self) {
@@ -237,23 +289,6 @@ Mul #1 #2 #0
 */
 
 /*
-let a = 1;
-print(a)
-Block[Assign<"a", 1>, FunCall<"print", Variable<"a">>]
-1. (#1) Block[...]                      c:
-2. (#2 Assign<...>) (#3 FunCall<...>)   c:
-3. (#2 Assign<...>) (#4 Variable<"a">)  c: FunCall<#0, #4, #3>
-4. (#2 Assign<...>)                     c: FunCall<#0, #4, #3> Assign<#?, #4>
-5. (#5 1)                               c: FunCall<#0, #4, #3> Assign<#?, #4> Assign<#5, #?>
-6.                                      c: FunCall<#0, #4, #3> Assign<#?, #4> Assign<#5, #?> Store<#5 1>
-
-StoreInt<#5, 1>
-Assign<#5, #?>
-Assign<#?, #4>
-FunCall<#0, #4, #3>
-*/
-
-/*
 Blocks
 let a = 1;
 let b = 2;
@@ -267,7 +302,7 @@ Block[Assign<Var<a>, Int<1>>, Assign<Var<b>, Int<2>>]
 Conditions:
 if <test> then <then_branch> else <else_branch> end
 if true then print(1) else print(2) end;
-Expected: Store<#3, true> Jmp<#3, 0> Store<#2, 1> FunCall<print, #2> JmpU<1> Label<0> Store<#1, 2> FunCall<print, #1> Label<1>
+Expected: Store<#3, true> Jmp<#3, 0> Store<#2, 1> NativeFunCall<print, #2> JmpU<1> Label<0> Store<#1, 2> FunCall<print, #1> Label<1>
 Cond Jmp<0> BlockTrue JmpU<1> Label<0> BlockFalse Label<1>
 Reversed: Label<1> BlockFalse Label<0> JmpU<1> BlockTrue Jmp<0> Cond <- this should be in commands
 */
@@ -282,6 +317,24 @@ Jmp<end_label>
 Block<code>
 Jmp<start_label>
 Label<end_label>
+*/
+
+/*
+Fun decl + fun call
+Declaration:
+JmpU<end_label>
+Label<fun_label>
+Pop<arg_name>
+...
+Block<code>
+JmpReturn
+Label<end_label>
+
+Call:
+Push<local_arg_var>
+...
+LabelReturn
+JmpU<fun_label>
 */
 
 #[derive(Debug, Clone)]
@@ -312,7 +365,12 @@ impl Command {
             match { *expr } {
                 Expr::Block(exprs) => {
                     stack.push(Stacked::Command(Command::ScopeStart));
-                    stack.extend(exprs.iter().map(|e| stacked_expr(storage.get_free(), e.clone())));
+                    let mut last_var = storage.get_free();
+                    stack.extend(exprs.iter().map(|e| {
+                        last_var = storage.get_free();
+                        stacked_expr(last_var.clone(), e.clone())
+                    }));
+                    stack.push(Stacked::Command(Command::Move { from: last_var, to: res_var }));
                     stack.push(Stacked::Command(Command::ScopeEnd));
                 }
                 Expr::Int(value) => {
@@ -350,15 +408,45 @@ impl Command {
                         from: StorageVar::User(ident.clone()),
                     });
                 }
-                Expr::FunCall(ident, arg) => {
-                    let func = StorageVar::User(ident.clone());
-                    let var = storage.get_free();
-                    stack.push(stacked_expr(var.clone(), arg.clone()));
-                    commands.push(Command::FunCall {
-                        func,
-                        arg: var,
-                        result: res_var,
-                    });
+                Expr::FunCall(ident, args) => {
+                    if let Some(func) = storage.get_native_function(ident.clone()) {
+                        let mut arg_count = 0;
+                        for arg in args {
+                            let var = storage.get_free();
+                            stack.push(stacked_expr(var.clone(), arg.clone()));
+                            stack.push(Stacked::Command(Command::Push { from: var }));
+                            arg_count += 1;
+                        }
+                        commands.push(Command::NativeFunCall {
+                            func,
+                            arg_count,
+                            result: res_var,
+                        });
+                    } else {
+                        for arg in args {
+                            let var = storage.get_free();
+                            stack.push(stacked_expr(var.clone(), arg.clone()));
+                            stack.push(Stacked::Command(Command::Push { from: var }));
+                        }
+                        stack.push(Stacked::Command(Command::LabelReturn));
+                        stack.push(Stacked::Command(Command::JmpU { to: Label::Function(ident.clone(), false) }));
+                        stack.push(Stacked::Command(Command::Pop { to: res_var }));
+                    }
+                }
+                Expr::FunDecl(ident, args, body) => {
+                    let end_label = Label::Direct(label);
+                    label += 1;
+                    stack.push(Stacked::Command(Command::JmpU { to: end_label.clone() }));
+                    stack.push(Stacked::Command(Command::Label { label: Label::Function(ident, true) }));
+                    stack.push(Stacked::Command(Command::ScopeStart));
+                    for arg in args {
+                        stack.push(Stacked::Command(Command::Pop { to: StorageVar::User(arg.clone()) }));
+                    }
+                    stack.push(stacked_expr(res_var.clone(), body.clone()));
+                    stack.push(Stacked::Command(Command::Push { from: res_var.clone() }));
+                    stack.push(Stacked::Command(Command::ScopeEnd));
+                    stack.push(Stacked::Command(Command::JmpReturn));
+                    stack.push(Stacked::Command(Command::Label { label: end_label.clone() }));
                 }
                 Expr::UnOp(op, value) => {
                     let var = storage.get_free();
@@ -467,18 +555,18 @@ impl Command {
                     let label_end = label;
                     label += 1;
                     stack.push(Stacked::Command(Command::Label {
-                        label: label_start
+                        label: Label::Direct(label_start)
                     }));
                     stack.push(stacked_expr(cond_var.clone(), cond.clone()));
                     stack.push(Stacked::Command(Command::Jmp {
-                        to: label_end,
+                        to: Label::Direct(label_end),
                         cond: cond_var,
                     }));
                     stack.push(stacked_expr(storage.get_free(), code.clone()));
                     stack.push(Stacked::Command(Command::JmpU {
-                        to: label_start,
+                        to: Label::Direct(label_start),
                     }));
-                    stack.push(Stacked::Command(Command::Label { label: label_end }));
+                    stack.push(Stacked::Command(Command::Label { label: Label::Direct(label_end) }));
                 }
                 Expr::If(cond, pos, neg) => {
                     // Label<1> BlockFalse Label<0> JmpU<1> BlockTrue Jmp<0> Cond
@@ -491,13 +579,13 @@ impl Command {
                     stack.push(stacked_expr(cond_var.clone(), cond.clone()));
                     stack.push(Stacked::Command(Command::Jmp {
                         cond: cond_var,
-                        to: label_false,
+                        to: Label::Direct(label_false),
                     }));
                     stack.push(stacked_expr(storage.get_free(), pos.clone()));
-                    stack.push(Stacked::Command(Command::JmpU { to: label_true }));
-                    stack.push(Stacked::Command(Command::Label { label: label_false }));
+                    stack.push(Stacked::Command(Command::JmpU { to: Label::Direct(label_true) }));
+                    stack.push(Stacked::Command(Command::Label { label: Label::Direct(label_false) }));
                     stack.push(stacked_expr(storage.get_free(), neg.clone()));
-                    stack.push(Stacked::Command(Command::Label { label: label_true }));
+                    stack.push(Stacked::Command(Command::Label { label: Label::Direct(label_true) }));
                 }
             }
         }
@@ -516,6 +604,7 @@ pub enum ExecutionError {
 pub struct VM {
     commands: Vec<Command>,
     current_command: usize,
+    return_stack: Vec<usize>,
     storage: Storage,
 }
 
@@ -527,6 +616,7 @@ impl VM {
     pub fn clear_commands(&mut self) {
         self.commands.clear();
         self.current_command = 0;
+        self.return_stack.clear()
     }
 
     pub fn parse_ast(&mut self, ast: Box<Expr>) {
@@ -550,9 +640,18 @@ impl VM {
 
     pub fn execute(&mut self) -> Result<(), ExecutionError> {
         let mut labels: HashMap<Label, usize> = HashMap::new();
-        for (index, command) in self.commands.iter().enumerate() {
-            if let Command::Label { label } = command {
-                labels.insert(*label, index);
+        for (index, command) in self.commands.iter_mut().enumerate() {
+            if let Command::Label { ref label } = command {
+                match label {
+                    Label::Function(ident, true) => {
+                        labels.insert(label.clone(), index);
+                        labels.insert(Label::Function(ident.clone(), false), index);
+                    }
+                    Label::Direct(_) => {
+                        labels.insert(label.clone(), index);
+                    }
+                    _ => {}
+                }
             }
         }
         while let Some(command) = self.commands.get(self.current_command).cloned() {
@@ -564,12 +663,11 @@ impl VM {
                     let value = self.load(from);
                     self.store(to, value);
                 }
-                Command::FunCall { func, arg, result } => {
+                Command::NativeFunCall { func, arg_count, result } => {
                     let function = self.load(func);
-                    let arg = self.load(arg);
                     match function {
                         Value::Function(f) => {
-                            self.store(result, f(arg));
+                            f(self.storage.stack_mut(), arg_count);
                         }
                         _ => unreachable!(),
                     }
@@ -746,12 +844,28 @@ impl VM {
                     self.current_command = *labels.get(&to).unwrap();
                     continue;
                 }
+                Command::JmpReturn => {
+                    let command = self.return_stack.pop().unwrap();
+                    self.current_command = command;
+                    continue;
+                }
                 Command::Label { .. } => {}
+                Command::LabelReturn => {
+                    self.return_stack.push(self.current_command + 2);
+                }
                 Command::ScopeStart => {
                     self.storage.scope_start();
                 }
                 Command::ScopeEnd => {
                     self.storage.scope_end();
+                }
+                Command::Push { from } => {
+                    let value = self.storage.load(from);
+                    self.storage.push(value);
+                }
+                Command::Pop { to } => {
+                    let value = self.storage.pop();
+                    self.storage.store(to, value);
                 }
                 Command::Nop => {}
                 Command::Halt => break,

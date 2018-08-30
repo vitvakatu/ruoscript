@@ -1,15 +1,15 @@
 -- Some comment
-a := 300 * 32 - 2;
+--a := 300 * 32 - 2;
 -- Another one
-b := 30 / 2 ^ 2; -- And one more
-c := a + b - (a ^ 2);
-print(a);
-print(b);
-print(c);
+--b := 30 / 2 ^ 2; -- And one more
+--c := a + b - (a ^ 2);
+--print(a);
+--print(b);
+--print(c);
 
-if true {
-    c := 0;
-    print(c);
+def sum(a, b) {
+    a + b
 }
 
+c := sum(1, 2);
 print(c);

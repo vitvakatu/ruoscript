@@ -6,6 +6,6 @@ while n < 10 {
     fib := f0 + f1;
     f0 = f1;
     f1 = fib;
-    print(fib);
+    print(n);
     n = n + 1;
 }
