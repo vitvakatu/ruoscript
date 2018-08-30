@@ -1,5 +1,7 @@
+-- Some comment
 a := 300 * 32 - 2;
-b := 30 / 2 ^ 2;
+-- Another one
+b := 30 / 2 ^ 2; -- And one more
 c := a + b - (a ^ 2);
 print(a);
 print(b);

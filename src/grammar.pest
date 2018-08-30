@@ -112,3 +112,5 @@ rcurly = _{ "}" }
 
 
 whitespace = _{ " " | "\t" | "\n" }
+comment = _{ "--" ~ (!newline ~ any)* }
+newline = _{ "\n" }
