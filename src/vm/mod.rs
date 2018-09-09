@@ -8,6 +8,7 @@ use value::Value;
 
 mod command;
 mod env;
+mod libstd;
 mod storage;
 
 /*

@@ -42,14 +42,9 @@ impl Default for Storage {
     }
 }
 
-fn print(stack: &mut Stack, arg_count: u8) {
-    for _ in 0..arg_count {
-        println!("{:?}", stack.pop());
-    }
-}
-
 impl Storage {
     pub fn init_native_functions(&mut self) {
+        use super::libstd::*;
         let var = self.get_free();
         self.store(var.clone(), Value::Function(print));
         self.native_functions.insert("print".to_string(), var);
