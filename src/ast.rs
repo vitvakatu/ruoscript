@@ -9,6 +9,7 @@ pub enum Expr {
     Variable(Ident),
     BinOp(Box<Expr>, BinOp, Box<Expr>),
     UnOp(UnOp, Box<Expr>),
+    DeclareVar(Ident, Box<Expr>),
     Assign(Ident, Box<Expr>),
     FunCall(Ident, Vec<Box<Expr>>),
     Return(Box<Expr>),

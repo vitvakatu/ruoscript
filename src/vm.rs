@@ -29,6 +29,10 @@ pub enum Command {
         to: StorageVar,
         value: Value,
     },
+    DeclareVar {
+        ident: Ident,
+        value: StorageVar,
+    },
     Move {
         to: StorageVar,
         from: StorageVar,
@@ -222,19 +226,25 @@ impl Storage {
         &mut self.stack
     }
 
+    pub fn declare_variable(&mut self, ident: Ident) -> StorageVar {
+        let var = self.get_free();
+        if let StorageVar::Local(var) = var {
+            self.environment.borrow_mut().set(ident, var);
+        }
+        var
+    }
+
     pub fn store(&mut self, var: StorageVar, value: Value) {
         match var {
             StorageVar::Local(local) => {
                 self.storage[local] = value;
             }
             StorageVar::User(ident) => {
-                let var = if let StorageVar::Local(var) = self.get_free() {
-                    var
+                if let Some(var) = self.environment.borrow().get(ident.clone()) {
+                    self.storage[var] = value;
                 } else {
-                    unreachable!()
-                };
-                self.environment.borrow_mut().set(ident.clone(), var);
-                self.storage[var] = value;
+                    panic!("Variable not found in scope: {}", ident);
+                }
             }
         }
     }
@@ -243,7 +253,7 @@ impl Storage {
         match var {
             StorageVar::Local(local) => self.storage[local].clone(),
             StorageVar::User(ident) => {
-                let var: LocalVar = self.environment.borrow().get(ident).unwrap();
+                let var: LocalVar = self.environment.borrow().get(ident.clone()).expect(&format!("Variable not found: {}", ident));
                 self.storage[var].clone()
             }
         }
@@ -418,6 +428,14 @@ impl Command {
                         from: var,
                     });
                 }
+                Expr::DeclareVar(ident, expr) => {
+                    let var = storage.get_free();
+                    stack.push(stacked_expr(var.clone(), expr.clone()));
+                    commands.push(Command::DeclareVar {
+                        ident: ident.clone(),
+                        value: var,
+                    });
+                }
                 Expr::Variable(ident) => {
                     commands.push(Command::Move {
                         to: res_var,
@@ -462,16 +480,18 @@ impl Command {
                     }));
                     stack.push(Stacked::Command(Command::ScopeStart));
                     for arg in args {
+                        let var = storage.get_free();
                         stack.push(Stacked::Command(Command::Pop {
-                            to: StorageVar::User(arg.clone()),
+                            to: var.clone(),
                         }));
+                        stack.push(Stacked::Command(Command::DeclareVar { ident: arg.clone(), value: var.clone() }));
                     }
                     stack.push(stacked_expr(res_var.clone(), body.clone()));
                     stack.push(Stacked::Command(Command::Push {
                         from: res_var.clone(),
                     }));
-                    stack.push(Stacked::Command(Command::ScopeEnd));
                     stack.push(Stacked::Command(Command::JmpReturn));
+                    stack.push(Stacked::Command(Command::ScopeEnd));
                     stack.push(Stacked::Command(Command::Label {
                         label: end_label.clone(),
                     }));
@@ -605,8 +625,8 @@ impl Command {
                     }));
                 }
                 Expr::If(cond, pos, neg) => {
-                    // Label<1> BlockFalse Label<0> JmpU<1> BlockTrue Jmp<0> Cond
-                    // ^ this should be in commands
+                    // Cond Jmp<0> BlockTrue JmpU<1> Label<0> BlockFalse Label<1>
+                    // ^ this should be in stack
                     let cond_var = storage.get_free();
                     let label_false = label;
                     label += 1;
@@ -676,30 +696,45 @@ impl VM {
         self.storage.store(var, value);
     }
 
+    pub fn declare_variable(&mut self, ident: Ident) -> StorageVar {
+        self.storage.declare_variable(ident)
+    }
+
     pub fn load(&mut self, var: StorageVar) -> Value {
         self.storage.load(var)
     }
 
     pub fn execute(&mut self) -> Result<(), ExecutionError> {
+        let mut nesting_levels: HashMap<usize, usize> = HashMap::new();
+        let mut nesting_level = 0;
         let mut labels: HashMap<Label, usize> = HashMap::new();
         for (index, command) in self.commands.iter_mut().enumerate() {
-            if let Command::Label { ref label } = command {
-                match label {
-                    Label::Function(ident, true) => {
-                        labels.insert(label.clone(), index);
-                        labels.insert(Label::Function(ident.clone(), false), index);
+            match command {
+                Command::Label { ref label } => {
+                    match label {
+                        Label::Function(ident, true) => {
+                            labels.insert(label.clone(), index);
+                            labels.insert(Label::Function(ident.clone(), false), index);
+                        }
+                        Label::Direct(_) => {
+                            labels.insert(label.clone(), index);
+                        }
+                        _ => {}
                     }
-                    Label::Direct(_) => {
-                        labels.insert(label.clone(), index);
-                    }
-                    _ => {}
                 }
+                _ => {}
             }
         }
+        nesting_level = 0;
         while let Some(command) = self.commands.get(self.current_command).cloned() {
             match command {
                 Command::Store { to, value } => {
                     self.store(to, value);
+                }
+                Command::DeclareVar { ident, value } => {
+                    let variable = self.declare_variable(ident);
+                    let value = self.load(value);
+                    self.store(variable, value);
                 }
                 Command::Move { to, from } => {
                     let value = self.load(from);
@@ -893,18 +928,24 @@ impl VM {
                 Command::JmpReturn => {
                     let command = self.return_stack.pop().unwrap();
                     self.current_command = command;
-                    self.storage.scope_end();
+                    let label_nesting_level = nesting_levels.get(&command).unwrap();
+                    for _ in 0..(nesting_level - label_nesting_level) {
+                        self.storage.scope_end();
+                    }
                     continue;
                 }
                 Command::Label { .. } => {}
                 Command::LabelReturn => {
                     self.return_stack.push(self.current_command + 2);
+                    nesting_levels.insert(self.current_command + 2, nesting_level);
                 }
                 Command::ScopeStart => {
                     self.storage.scope_start();
+                    nesting_level += 1;
                 }
                 Command::ScopeEnd => {
                     self.storage.scope_end();
+                    nesting_level -= 1;
                 }
                 Command::Push { from } => {
                     let value = self.storage.load(from);

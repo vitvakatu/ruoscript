@@ -49,7 +49,7 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
             let mut inner = pair.into_inner();
             let ident = inner.next().unwrap().as_str().to_string();
             let arg = inner.next().unwrap();
-            Box::new(Expr::Assign(ident, to_ast(arg)))
+            Box::new(Expr::DeclareVar(ident, to_ast(arg)))
         }
         Rule::var_assign => {
             let mut inner = pair.into_inner();
