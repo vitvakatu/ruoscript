@@ -1,10 +1,6 @@
-use super::env::Environment;
-use super::env::EnvironmentData;
+use super::env::{Environment, EnvironmentData};
 use stack::Stack;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::fmt;
-use std::rc::Rc;
+use std::{cell::RefCell, collections::HashMap, fmt, rc::Rc};
 use types::*;
 use value::Value;
 

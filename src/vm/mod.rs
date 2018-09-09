@@ -1,14 +1,14 @@
-use ast::{CmpOp, Expr};
 use std::collections::HashMap;
+
+use self::command::Command;
+pub use self::storage::{Storage, StorageVar};
+use ast::{CmpOp, Expr};
 use types::*;
 use value::Value;
 
 mod command;
 mod env;
 mod storage;
-
-use self::command::Command;
-pub use self::storage::{Storage, StorageVar};
 
 /*
 3 + 5

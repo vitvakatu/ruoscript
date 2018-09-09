@@ -1,9 +1,5 @@
-use super::storage::Storage;
-use super::storage::StorageVar;
-use ast::BinOp;
-use ast::CmpOp;
-use ast::Expr;
-use ast::UnOp;
+use super::storage::{Storage, StorageVar};
+use ast::{BinOp, CmpOp, Expr, UnOp};
 use types::*;
 use value::Value;
 
