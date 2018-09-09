@@ -1,5 +1,5 @@
 use stack::Stack;
-use types::{Bool, Float, Int, Type};
+use types::{Bool, Float, Int};
 
 use std::cmp::Ordering;
 use std::fmt;

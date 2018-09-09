@@ -1,5 +1,5 @@
 use ast::{BinOp, Expr, UnOp};
-use pest::iterators::{Pair, Pairs};
+use pest::iterators::Pair;
 use Rule;
 
 use std::iter::Peekable;
@@ -98,7 +98,6 @@ impl Token {
             Token::Div => 80,
             Token::Add => 60,
             Token::Sub => 60,
-            Token::Eq => 30,
             Token::Eq => 30,
             Token::Neq => 30,
             Token::Le => 30,

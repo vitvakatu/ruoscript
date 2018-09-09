@@ -42,3 +42,13 @@ pub enum UnOp {
     Not,
     Minus,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CmpOp {
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    NotEq,
+    Eq,
+}

@@ -10,7 +10,7 @@ mod value;
 mod vm;
 
 use pest::{
-    iterators::{Pair, Pairs},
+    iterators::Pair,
     Parser as PestParser,
 };
 
@@ -18,12 +18,8 @@ use prec_climber::{tokenize, Parser};
 use std::env;
 use std::fs::File;
 use std::io::{self, Read};
-use std::str::FromStr;
 
-use ast::BinOp;
 use ast::Expr;
-use value::Value;
-use vm::StorageVar;
 
 const _GRAMMAR: &str = include_str!("grammar.pest");
 
@@ -104,7 +100,7 @@ fn main() -> io::Result<()> {
         .nth(1)
         .unwrap_or("scripts/arithmetic.ruo".to_string());
     println!("Parsing file: {}", filename);
-    let mut file = File::open(filename)?.read_to_string(&mut input)?;
+    File::open(filename)?.read_to_string(&mut input)?;
 
     let ast = RuoParser::parse(Rule::program, &input)
         .unwrap()
@@ -116,7 +112,7 @@ fn main() -> io::Result<()> {
 
     let mut vm = vm::VM::new();
     vm.parse_ast(ast);
-    vm.execute();
+    vm.execute().unwrap();
 
     Ok(())
 }
