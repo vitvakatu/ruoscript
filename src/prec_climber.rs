@@ -45,7 +45,11 @@ fn tokenize_rec(pair: Pair<Rule>, tokens: &mut Vec<Token>) {
                     Rule::float => Token::Float(pair.as_str().parse().unwrap()),
                     Rule::boolean => Token::Bool(pair.as_str().parse().unwrap()),
                     Rule::identifier => Token::Literal(pair.as_str().to_string()),
-                    Rule::string => Token::String(pair.as_str().to_string()),
+                    Rule::string => {
+                        let string = pair.as_str();
+                        let len = string.len();
+                        Token::String(string[1..len-1].to_string())
+                    },
                     Rule::fun_call => {
                         let mut inner = pair.into_inner();
                         let ident = inner.next().unwrap().as_str().to_string();
