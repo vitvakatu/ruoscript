@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use types::*;
 use value::Value;
+use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CmpOp {
@@ -173,6 +174,16 @@ pub struct Storage {
     native_functions: HashMap<Ident, StorageVar>,
 }
 
+impl fmt::Debug for Storage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.debug_struct("Storage")
+            //.field("storage", &self.storage.iter().filter(|v| v != &&Value::Empty).collect::<Vec<_>>())
+            .field("stack", &self.stack)
+            //.field("env", &self.environment)
+            .finish()
+    }
+}
+
 impl Default for Storage {
     fn default() -> Self {
         let mut res = Self {
@@ -202,7 +213,7 @@ impl Storage {
 
     pub fn get_free(&mut self) -> StorageVar {
         let res = self.last;
-        self.storage.push(Value::Int(0));
+        self.storage.push(Value::Empty);
         self.last += 1;
         StorageVar::Local(res)
     }
@@ -217,13 +228,10 @@ impl Storage {
                 self.storage[local] = value;
             }
             StorageVar::User(ident) => {
-                let var = self.environment.borrow().get(ident.clone());
-                let var = if let Some(var) = var {
+                let var = if let StorageVar::Local(var) = self.get_free() {
                     var
                 } else {
-                    if let StorageVar::Local(var) = self.get_free() {
-                        var
-                    } else { unreachable!() }
+                    unreachable!()
                 };
                 self.environment.borrow_mut().set(ident.clone(), var);
                 self.storage[var] = value;
@@ -467,6 +475,12 @@ impl Command {
                     stack.push(Stacked::Command(Command::Label {
                         label: end_label.clone(),
                     }));
+                }
+                Expr::Return(expr) => {
+                    let var = storage.get_free();
+                    stack.push(stacked_expr(var.clone(), expr.clone()));
+                    stack.push(Stacked::Command(Command::Push { from: var.clone() }));
+                    stack.push(Stacked::Command(Command::JmpReturn));
                 }
                 Expr::UnOp(op, value) => {
                     let var = storage.get_free();
@@ -879,6 +893,7 @@ impl VM {
                 Command::JmpReturn => {
                     let command = self.return_stack.pop().unwrap();
                     self.current_command = command;
+                    self.storage.scope_end();
                     continue;
                 }
                 Command::Label { .. } => {}

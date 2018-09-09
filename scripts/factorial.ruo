@@ -1,0 +1,10 @@
+def factorial(n) {
+    if n == 0 {
+        return 1;
+    } else {
+        res := factorial(n - 1);
+        return n * res;
+    }
+}
+
+print(factorial(3));

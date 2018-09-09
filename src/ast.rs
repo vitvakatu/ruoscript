@@ -11,6 +11,7 @@ pub enum Expr {
     UnOp(UnOp, Box<Expr>),
     Assign(Ident, Box<Expr>),
     FunCall(Ident, Vec<Box<Expr>>),
+    Return(Box<Expr>),
     Block(Vec<Box<Expr>>),
     WhileLoop(Box<Expr>, Box<Expr>),
     FunDecl(Ident, Vec<Ident>, Box<Expr>),
