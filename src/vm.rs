@@ -938,6 +938,7 @@ impl VM {
                     let label_nesting_level = nesting_levels.get(&command).unwrap();
                     for _ in 0..(nesting_level - label_nesting_level) {
                         self.storage.scope_end();
+                        nesting_level -= 1;
                     }
                     continue;
                 }
