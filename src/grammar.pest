@@ -91,6 +91,10 @@ boolean = @{
     "true" | "false"
 }
 
+string = @{
+    "\"" ~ (!"\"" ~ any)* ~ "\""
+}
+
 bin_op = _{
     op_add | op_sub | op_mul | op_div | op_pow |
     op_eq | op_neq | op_ge | op_gt | op_le | op_lt |
@@ -123,7 +127,7 @@ term = _{
     primary | (lparen ~ bin_expr ~ rparen)
 }
 primary = _{
-    un_op? ~ (fun_call | identifier | boolean | float | int)
+    un_op? ~ (fun_call | identifier | boolean | float | int | string)
 }
 lparen = _{ "(" }
 rparen = _{ ")" }

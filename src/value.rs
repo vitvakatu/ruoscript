@@ -10,6 +10,7 @@ pub enum Value {
     Int(Int),
     Float(Float),
     Bool(Bool),
+    String(String),
     Function(fn(&mut Stack, u8)),
 }
 
@@ -17,9 +18,10 @@ impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
             Value::Empty => write!(f, "Empty"),
-            Value::Int(i) => write!(f, "Int({})", i),
-            Value::Float(float) => write!(f, "Float({})", float),
-            Value::Bool(b) => write!(f, "Bool({})", b),
+            Value::Int(i) => write!(f, "{}", i),
+            Value::Float(float) => write!(f, "{}", float),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::String(ref s) => write!(f, "{}", s),
             Value::Function(_) => write!(f, "<Native function>"),
         }
     }
@@ -32,6 +34,7 @@ impl PartialEq for Value {
             (Value::Int(ref l), Value::Int(ref r)) => l == r,
             (Value::Float(ref l), Value::Float(ref r)) => l == r,
             (Value::Bool(ref l), Value::Bool(ref r)) => l == r,
+            (Value::String(ref l), Value::String(ref r)) => l == r,
             _ => false,
         }
     }

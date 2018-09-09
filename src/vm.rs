@@ -420,6 +420,13 @@ impl Command {
                     };
                     commands.push(command);
                 }
+                Expr::String(value) => {
+                    let command = Command::Store {
+                        to: res_var,
+                        value: Value::String(value.clone()),
+                    };
+                    commands.push(command);
+                }
                 Expr::Assign(ident, expr) => {
                     let var = storage.get_free();
                     stack.push(stacked_expr(var.clone(), expr.clone()));
