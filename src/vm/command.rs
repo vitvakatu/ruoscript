@@ -1,11 +1,11 @@
-use super::storage::StorageVar;
-use value::Value;
-use types::*;
-use ast::Expr;
-use ast::BinOp;
-use ast::UnOp;
-use ast::CmpOp;
 use super::storage::Storage;
+use super::storage::StorageVar;
+use ast::BinOp;
+use ast::CmpOp;
+use ast::Expr;
+use ast::UnOp;
+use types::*;
+use value::Value;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
@@ -226,10 +226,11 @@ impl Command {
                     stack.push(Stacked::Command(Command::ScopeStart));
                     for arg in args {
                         let var = storage.get_free();
-                        stack.push(Stacked::Command(Command::Pop {
-                            to: var.clone(),
+                        stack.push(Stacked::Command(Command::Pop { to: var.clone() }));
+                        stack.push(Stacked::Command(Command::DeclareVar {
+                            ident: arg.clone(),
+                            value: var.clone(),
                         }));
-                        stack.push(Stacked::Command(Command::DeclareVar { ident: arg.clone(), value: var.clone() }));
                     }
                     stack.push(stacked_expr(res_var.clone(), body.clone()));
                     stack.push(Stacked::Command(Command::Push {

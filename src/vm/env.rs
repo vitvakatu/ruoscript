@@ -1,6 +1,6 @@
-use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use types::*;
 
 pub type Environment = Rc<RefCell<EnvironmentData>>;

@@ -6,7 +6,6 @@ pub type Float = f64;
 pub type Bool = bool;
 pub type Ident = String;
 
-
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum Label {
     Function(Ident, bool),

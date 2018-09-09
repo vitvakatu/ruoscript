@@ -1,12 +1,12 @@
-use types::*;
-use std::fmt;
 use super::env::Environment;
-use std::collections::HashMap;
-use value::Value;
-use stack::Stack;
 use super::env::EnvironmentData;
-use std::rc::Rc;
+use stack::Stack;
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::fmt;
+use std::rc::Rc;
+use types::*;
+use value::Value;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StorageVar {
@@ -97,7 +97,11 @@ impl Storage {
         match var {
             StorageVar::Local(local) => self.storage[local].clone(),
             StorageVar::User(ident) => {
-                let var: LocalVar = self.environment.borrow().get(ident.clone()).expect(&format!("Variable not found: {}", ident));
+                let var: LocalVar = self
+                    .environment
+                    .borrow()
+                    .get(ident.clone())
+                    .expect(&format!("Variable not found: {}", ident));
                 self.storage[var].clone()
             }
         }

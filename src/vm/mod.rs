@@ -1,4 +1,4 @@
-use ast::{Expr, CmpOp};
+use ast::{CmpOp, Expr};
 use std::collections::HashMap;
 use types::*;
 use value::Value;
@@ -7,8 +7,8 @@ mod command;
 mod env;
 mod storage;
 
-pub use self::storage::{Storage, StorageVar};
 use self::command::Command;
+pub use self::storage::{Storage, StorageVar};
 
 /*
 3 + 5
@@ -132,18 +132,16 @@ impl VM {
         let mut labels: HashMap<Label, usize> = HashMap::new();
         for (index, command) in self.commands.iter_mut().enumerate() {
             match command {
-                Command::Label { ref label } => {
-                    match label {
-                        Label::Function(ident, true) => {
-                            labels.insert(label.clone(), index);
-                            labels.insert(Label::Function(ident.clone(), false), index);
-                        }
-                        Label::Direct(_) => {
-                            labels.insert(label.clone(), index);
-                        }
-                        _ => {}
+                Command::Label { ref label } => match label {
+                    Label::Function(ident, true) => {
+                        labels.insert(label.clone(), index);
+                        labels.insert(Label::Function(ident.clone(), false), index);
                     }
-                }
+                    Label::Direct(_) => {
+                        labels.insert(label.clone(), index);
+                    }
+                    _ => {}
+                },
                 _ => {}
             }
         }

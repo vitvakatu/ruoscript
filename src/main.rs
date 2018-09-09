@@ -9,10 +9,7 @@ mod types;
 mod value;
 mod vm;
 
-use pest::{
-    iterators::Pair,
-    Parser as PestParser,
-};
+use pest::{iterators::Pair, Parser as PestParser};
 
 use prec_climber::{tokenize, Parser};
 use std::env;
@@ -87,9 +84,7 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
                 .unwrap_or(Box::new(Expr::Empty));
             Box::new(Expr::If(cond, pos, neg))
         }
-        Rule::return_stmt => {
-            Box::new(Expr::Return(to_ast(pair.into_inner().next().unwrap())))
-        }
+        Rule::return_stmt => Box::new(Expr::Return(to_ast(pair.into_inner().next().unwrap()))),
         _ => unreachable!(),
     }
 }
