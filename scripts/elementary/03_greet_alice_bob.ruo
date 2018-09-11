@@ -1,0 +1,8 @@
+print("Hello! Enter your name: ");
+name := read_line();
+if name == "Alice" or name == "Bob" {
+    print("Hello, ", name, "!");
+} else {
+    print("Sorry, don't want to talk with you");
+}
+

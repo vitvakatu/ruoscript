@@ -1,0 +1,8 @@
+print("Enter number: ");
+n := int(read_line());
+sum := 0;
+while n > 0 {
+    sum = sum + n;
+    n = n - 1;
+}
+print("Sum from 1 to your number: ", str(sum));

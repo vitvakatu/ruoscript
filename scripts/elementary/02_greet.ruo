@@ -1,0 +1,3 @@
+print("Hello! Enter your name: ");
+name := read_line();
+print("Hello, ", name, "!");
