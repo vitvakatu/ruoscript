@@ -163,7 +163,7 @@ impl VM {
                 Command::NativeFunCall {
                     func,
                     arg_count,
-                    result: _,
+                    result,
                 } => {
                     let function = self.load(func);
                     match function {
@@ -172,6 +172,8 @@ impl VM {
                         }
                         _ => unreachable!(),
                     }
+                    let value = self.storage.stack_mut().pop();
+                    self.store(result, value);
                 }
                 Command::UnaryMinus { value, result } => {
                     let value = self.load(value);
