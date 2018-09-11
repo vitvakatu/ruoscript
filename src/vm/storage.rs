@@ -45,9 +45,14 @@ impl Default for Storage {
 impl Storage {
     pub fn init_native_functions(&mut self) {
         use super::libstd::*;
-        let var = self.get_free();
-        self.store(var.clone(), Value::Function(print));
-        self.native_functions.insert("print".to_string(), var);
+        let mut add_function = |name: &str, func| {
+            let var = self.get_free();
+            self.store(var.clone(), Value::Function(func));
+            self.native_functions.insert(name.to_string(), var);
+        };
+        add_function("print", print);
+        add_function("int", int);
+        add_function("float", float);
     }
 
     pub fn get_free(&mut self) -> StorageVar {

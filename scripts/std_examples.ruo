@@ -1,2 +1,2 @@
-x := print("Hello");
-print(x);
+x := 3.14;
+print(int(x));
