@@ -1,11 +1,15 @@
 use stack::Stack;
 use value::Value;
 
+use std::io::{self, BufRead};
+
 pub fn print(stack: &mut Stack, arg_count: u8) {
     for _ in 0..arg_count {
         print!("{:?}", stack.pop());
     }
-    print!("\n");
+    if arg_count != 0 {
+        print!("\n");
+    }
     stack.push(Value::Empty);
 }
 
@@ -37,4 +41,11 @@ pub fn string(stack: &mut Stack, arg_count: u8) {
     assert_eq!(arg_count, 1);
     let s = format!("{:?}", stack.pop());
     stack.push(Value::String(s));
+}
+
+pub fn read_line(stack: &mut Stack, arg_count: u8) {
+    assert_eq!(arg_count, 0);
+    let stdin = io::stdin();
+    let line = stdin.lock().lines().next().unwrap().unwrap();
+    stack.push(Value::String(line));
 }
