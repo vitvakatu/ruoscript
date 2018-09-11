@@ -1,2 +1,10 @@
+-- Float to int conversion
 x := 3.14;
 print(int(x));
+
+-- Int to float conversion
+x := 3.14 * float(2);
+print(x);
+
+-- Types to string conversion
+print(str(10), " ", str(true), " ", str(3.14), " ", str(print()));

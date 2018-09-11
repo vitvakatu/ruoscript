@@ -53,6 +53,7 @@ impl Storage {
         add_function("print", print);
         add_function("int", int);
         add_function("float", float);
+        add_function("str", string);
     }
 
     pub fn get_free(&mut self) -> StorageVar {

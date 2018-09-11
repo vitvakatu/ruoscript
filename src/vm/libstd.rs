@@ -3,8 +3,9 @@ use value::Value;
 
 pub fn print(stack: &mut Stack, arg_count: u8) {
     for _ in 0..arg_count {
-        println!("{:?}", stack.pop());
+        print!("{:?}", stack.pop());
     }
+    print!("\n");
     stack.push(Value::Empty);
 }
 
@@ -30,4 +31,10 @@ pub fn float(stack: &mut Stack, arg_count: u8) {
         _ => panic!("Invalid input type"),
     };
     stack.push(value);
+}
+
+pub fn string(stack: &mut Stack, arg_count: u8) {
+    assert_eq!(arg_count, 1);
+    let s = format!("{:?}", stack.pop());
+    stack.push(Value::String(s));
 }

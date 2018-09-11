@@ -17,7 +17,7 @@ pub enum Value {
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            Value::Empty => write!(f, "Empty"),
+            Value::Empty => write!(f, "()"),
             Value::Int(i) => write!(f, "{}", i),
             Value::Float(float) => write!(f, "{}", float),
             Value::Bool(b) => write!(f, "{}", b),
