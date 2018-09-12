@@ -7,7 +7,7 @@ code_block = {
 }
 
 statement = _{
-    (fun_decl | var_decl | var_assign | (expr ~ ";") | while_loop | if_cond | return_stmt)
+    (fun_decl | var_decl | var_assign | (expr ~ ";") | while_loop | for_loop | if_cond | return_stmt)
 }
 
 fun_decl = {
@@ -28,6 +28,10 @@ var_assign = {
 
 while_loop = {
     "while" ~ expr ~ lcurly ~ code_block ~ rcurly
+}
+
+for_loop = {
+    "for" ~ identifier ~ "in" ~ expr ~ "," ~ expr ~ lcurly ~ code_block ~ rcurly
 }
 
 return_stmt = {
@@ -63,6 +67,7 @@ identifier = @{
 }
 
 keywords = {
+    "for" |
     "return" |
     "def" |
     "if" |

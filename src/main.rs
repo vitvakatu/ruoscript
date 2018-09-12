@@ -16,7 +16,7 @@ use std::env;
 use std::fs::File;
 use std::io::{self, Read};
 
-use ast::Expr;
+use ast::{BinOp, Expr};
 
 const _GRAMMAR: &str = include_str!("grammar.pest");
 
@@ -55,6 +55,35 @@ fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
             let cond = to_ast(inner.next().unwrap());
             let code = to_ast(inner.next().unwrap());
             Box::new(Expr::WhileLoop(cond, code))
+        }
+        Rule::for_loop => {
+            let mut inner = pair.into_inner();
+            let ident = inner.next().unwrap().as_str().to_string();
+            let lexpr = to_ast(inner.next().unwrap());
+            let rexpr = to_ast(inner.next().unwrap());
+            let body = to_ast(inner.next().unwrap());
+            let for_loop = Box::new(Expr::Block(vec![
+                Box::new(Expr::DeclareVar(ident.clone(), lexpr)),
+                Box::new(Expr::WhileLoop(
+                    Box::new(Expr::BinOp(
+                        Box::new(Expr::Variable(ident.clone())),
+                        BinOp::Lt,
+                        rexpr,
+                    )),
+                    Box::new(Expr::Block(vec![
+                        body,
+                        Box::new(Expr::Assign(
+                            ident.clone(),
+                            Box::new(Expr::BinOp(
+                                Box::new(Expr::Variable(ident.clone())),
+                                BinOp::Add,
+                                Box::new(Expr::Int(1)),
+                            )),
+                        )),
+                    ])),
+                )),
+            ]));
+            for_loop
         }
         Rule::fun_call => {
             let mut inner = pair.into_inner();
