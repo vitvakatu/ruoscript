@@ -1,0 +1,30 @@
+def sum(n) {
+    sum := 0;
+    for i in 1, n + 1 {
+        sum = sum + i;
+    }
+    print("Sum from 1 to your number: ", str(sum));
+}
+
+def product(n) {
+    product := 1;
+    for i in 1, n + 1 {
+        product = product * i;
+    }
+    print("Product from 1 to your number: ", str(product));
+}
+
+print("Enter number: ");
+n := int(read_line());
+
+print("Enter 'sum' or 'product'");
+func := read_line();
+
+if func == "sum" {
+    sum(n);
+} else {
+    product(n);
+}
+
+
+
