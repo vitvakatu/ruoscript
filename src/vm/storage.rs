@@ -55,6 +55,7 @@ impl Storage {
         add_function("float", float);
         add_function("str", string);
         add_function("read_line", read_line);
+        add_function("mod", mod_op);
     }
 
     pub fn get_free(&mut self) -> StorageVar {

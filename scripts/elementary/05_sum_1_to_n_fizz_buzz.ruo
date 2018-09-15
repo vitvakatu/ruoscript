@@ -1,0 +1,9 @@
+print("Enter number: ");
+n := int(read_line());
+sum := 0;
+for i in 1, n + 1 {
+    if (mod(i, 3) == 0) || (mod(i, 5) == 0) {
+        sum = sum + i;
+    }
+}
+print("Sum from 1 to your number, excluding numbers not dividable by 3 and 5: ", str(sum));

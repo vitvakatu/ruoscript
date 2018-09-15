@@ -49,3 +49,13 @@ pub fn read_line(stack: &mut Stack, arg_count: u8) {
     let line = stdin.lock().lines().next().unwrap().unwrap();
     stack.push(Value::String(line));
 }
+
+pub fn mod_op(stack: &mut Stack, arg_count: u8) {
+    assert_eq!(arg_count, 2);
+    let number = stack.pop();
+    let modulo = stack.pop();
+    match (number, modulo) {
+        (Value::Int(n), Value::Int(m)) => stack.push(Value::Int(n % m)),
+        _ => panic!("Invalid types"),
+    }
+}
