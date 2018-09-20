@@ -56,6 +56,7 @@ impl Storage {
         add_function("str", string);
         add_function("read_line", read_line);
         add_function("mod", mod_op);
+        add_function("len", len);
     }
 
     pub fn get_free(&mut self) -> StorageVar {

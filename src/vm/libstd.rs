@@ -59,3 +59,12 @@ pub fn mod_op(stack: &mut Stack, arg_count: u8) {
         _ => panic!("Invalid types"),
     }
 }
+
+pub fn len(stack: &mut Stack, arg_count: u8) {
+    assert_eq!(arg_count, 1);
+    let value = match stack.pop() {
+        Value::String(s) => s.len(),
+        _ => panic!("Invalid type"),
+    };
+    stack.push(Value::Int(value as i64));
+}

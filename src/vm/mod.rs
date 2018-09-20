@@ -203,6 +203,9 @@ impl VM {
                         (Value::Float(left), Value::Float(right)) => {
                             self.store(result, Value::Float(left + right));
                         }
+                        (Value::String(left), Value::String(right)) => {
+                            self.store(result, Value::String(left + &right));
+                        }
                         (f, s) => {
                             return Err(ExecutionError::InvalidType {
                                 expected: format!("Equal types: {:?}, {:?}", f, s),
