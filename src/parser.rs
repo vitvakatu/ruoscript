@@ -7,10 +7,18 @@ use ast::helpers::*;
 //use prec_climber::{tokenize, Parser};
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum FloatPart {
+    Fraction,
+    Exponent
+}
+
+pub type Error = String;
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum State {
     Start,
     Number,
-    Float,
+    Float(FloatPart),
     Ident,
     String,
     Whitespace,
@@ -18,45 +26,51 @@ pub enum State {
 }
 
 impl State {
-    pub fn fold(&mut self, cs: &mut Vec<char>) -> Option<Box<Expr>> {
+    pub fn fold(&mut self, cs: &mut Vec<char>) -> Result<Box<Expr>, Error> {
         let res = match *self {
-            State::Start => None,
+            State::Start => unreachable!("Start"),
             State::Number => {
-                let string: String = cs.iter().collect();
-                let number: i64 = string.parse().expect("Could not parse integer");
-                Some(int(number))
+                let mut string: String = cs.iter().collect();
+                let number: i64 = match string.parse() {
+                    Ok(n) => n,
+                    Err(e) => return Err(format!("Unable to parse integer: {}", e))
+                };
+                Ok(int(number))
             },
-            State::Float => {
+            State::Float(_) => {
                 let string: String = cs.iter().collect();
-                let number: f64 = string.parse().expect("Could not parse float");
-                Some(float(number))
+                let number: f64 = match string.parse() {
+                    Ok(n) => n,
+                    Err(e) => return Err(format!("Unable to parse float: {}", e))
+                };
+                Ok(float(number))
             },
             State::Ident => {
-                Some(var(cs.iter().collect::<String>()))
+                Ok(var(cs.iter().collect::<String>()))
             },
             State::String => {
-                Some(var(cs.iter().collect::<String>()))
+                Ok(var(cs.iter().collect::<String>()))
             },
             State::Whitespace => unreachable!("Whitespace"),
             State::End => unreachable!("End"),
         };
-        if res.is_some() {
+        if res.is_ok() {
             cs.clear();
         }
         res
     }
 
-    fn try_whitespace(&mut self, c: char, cs: &mut Vec<char>) -> Option<Box<Expr>> {
+    fn try_whitespace(&mut self, c: char, cs: &mut Vec<char>) -> Result<Option<Box<Expr>>, Error> {
         if c.is_whitespace() {
             let res = self.fold(cs);
             *self = State::Whitespace;
-            res
+            res.map(Some)
         } else {
-            None
+            Ok(None)
         }
     }
 
-    pub fn read_char(&mut self, c: char, cs: &mut Vec<char>) -> Option<Box<Expr>> {
+    pub fn read_char(&mut self, c: char, nc: Option<char>, cs: &mut Vec<char>) -> Result<Option<Box<Expr>>, Error> {
         match *self {
             State::End => unreachable!(),
             State::Whitespace => {
@@ -75,54 +89,68 @@ impl State {
                         cs.push(c);
                     }
                 }
-                None
+                Ok(None)
             }
             State::Number => {
-                println!("Number, {:?}, {:?}", c, cs);
-                let res = self.try_whitespace(c, cs);
+                let res = self.try_whitespace(c, cs)?;
                 if res.is_none() {
                     if c.is_numeric() {
                         cs.push(c);
+                    } else if c == '_' {
+                        // do nothing
                     } else if c == '.' {
                         cs.push(c);
-                        *self = State::Float;
+                        *self = State::Float(FloatPart::Fraction);
                     } else {
-                        panic!("Expected number or .");
+                        return Err("Expected number or .".into());
                     }
                 }
-                res
+                Ok(res)
             }
-            State::Float => {
-                let res = self.try_whitespace(c, cs);
+            State::Float(FloatPart::Fraction) => {
+                let res = self.try_whitespace(c, cs)?;
                 if res.is_none() {
                     if c.is_numeric() {
                         cs.push(c);
+                    } else if c == 'e' || c == 'E' {
+                        cs.push(c);
+                        *self = State::Float(FloatPart::Exponent);
                     } else {
-                        panic!("Expected number");
+                        return Err("Expected number or e or E".into());
                     }
                 }
-                res
+                Ok(res)
+            }
+            State::Float(FloatPart::Exponent) => {
+                let res = self.try_whitespace(c, cs)?;
+                if res.is_none() {
+                    if c.is_numeric() || c == '-' || c == '+' {
+                        cs.push(c);
+                    } else {
+                        return Err("Expected number or -".into());
+                    }
+                }
+                Ok(res)
             }
             State::Ident => {
-                let res  = self.try_whitespace(c,cs);
+                let res  = self.try_whitespace(c,cs)?;
                 if res.is_none() {
                     cs.push(c);
                 }
-                res
+                Ok(res)
             }
             State::String => {
                 cs.push(c);
                 if c == '"' {
-                    self.fold(cs)
+                    self.fold(cs).map(Some)
                 } else {
-                    None
+                    Ok(None)
                 }
             }
             State::Start => {
-                println!("Start, {}", c);
                 if c.is_whitespace() {
                     *self = State::Whitespace;
-                } else if c.is_numeric() {
+                } else if c.is_numeric() || (c == '-' && nc.map_or(false, |c| c.is_numeric())) {
                     *self = State::Number;
                     cs.clear();
                     cs.push(c);
@@ -134,8 +162,10 @@ impl State {
                     *self = State::String;
                     cs.clear();
                     cs.push(c);
+                } else {
+                    return Err("Expected whitespace, number, \" or alphabetic character".into());
                 }
-                None
+                Ok(None)
             }
         }
     }
@@ -144,25 +174,24 @@ impl State {
 pub struct Parser;
 
 impl Parser {
-    pub fn parse(input: &str) -> Box<Expr> {
+    pub fn parse(input: &str) -> Result<Box<Expr>, Error> {
         let mut stack: Vec<Box<Expr>> = Vec::new();
         let mut state = State::Start;
         let mut cs = Vec::new();
 
         let mut chars = input.char_indices().peekable();
         while let Some((i, c)) = chars.next() {
-            let expr_opt = state.read_char(c, &mut cs);
+            let nc = chars.peek().map(|(i, c)| *c);
+            let expr_opt = state.read_char(c, nc, &mut cs)?;
             if expr_opt.is_some() {
                 stack.push(expr_opt.unwrap());
             }
         }
 
-        let expr_opt = state.fold(&mut cs);
-        if expr_opt.is_some() {
-            stack.push(expr_opt.unwrap());
-        }
+        let expr = state.fold(&mut cs)?;
+        stack.push(expr);
 
-        return block(stack);
+        Ok(block(stack))
     }
 }
 
@@ -171,10 +200,10 @@ pub fn parse_file(filename: &str) -> io::Result<Box<Expr>> {
     let mut input = String::new();
     File::open(filename)?.read_to_string(&mut input)?;
 
-    Ok(parse_string(&input))
+    Ok(parse_string(&input).unwrap())
 }
 
-pub fn parse_string(string: &str) -> Box<Expr> {
+pub fn parse_string(string: &str) -> Result<Box<Expr>, Error> {
     let ast = Parser::parse(string);
     ast
 }
@@ -186,13 +215,48 @@ mod tests {
 
     macro_rules! assert_parse {
         ($program:expr => $($e:expr),*) => {
-            assert_eq!(parse_string($program), block(vec![$($e),*]));
+            assert_eq!(parse_string($program).unwrap(), block(vec![$($e),*]));
+        }
+    }
+
+    macro_rules! assert_not_parse {
+        ($program:expr) => {
+            assert!(parse_string($program).is_err());
         }
     }
 
     #[test]
     fn int_test() {
         assert_parse!("123" => int(123));
+        assert_parse!("0" => int(0));
+        assert_parse!("1" => int(1));
+        assert_parse!("-1" => int(-1));
+        assert_parse!("-0" => int(0));
+        assert_parse!("3_000_000" => int(3_000_000));
+        assert_not_parse!("1-23");
+    }
+
+    #[test]
+    fn float_test() {
+        assert_parse!("0.0" => float(0.0));
+        assert_parse!("-0.0" => float(0.0));
+        assert_parse!("3.14" => float(3.14));
+        assert_parse!("-3.14" => float(-3.14));
+        assert_parse!("0.16e-3" => float(0.16e-3));
+        assert_parse!("0.16e1" => float(1.6));
+        assert_parse!("0.16e0" => float(0.16));
+        assert_parse!("0.16E-3" => float(0.16e-3));
+        assert_parse!("1.6e7" => float(1.6e7));
+        assert_parse!("1.6e+7" => float(1.6e7));
+        assert_parse!("1.6E7" => float(1.6e7));
+        assert_parse!("-1.6e7" => float(-1.6e7));
+        assert_not_parse!(".0");
+        assert_not_parse!("3.14B2");
+        assert_not_parse!(".3");
+        assert_not_parse!("0.0.4");
+        assert_not_parse!("-0.03-3");
+        assert_not_parse!("-0.03e-3-2");
+        assert_not_parse!("-0.03e-3+2");
     }
 
 }
