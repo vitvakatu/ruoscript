@@ -55,19 +55,19 @@ pub mod helpers {
         Box::new(Expr::UnOp(op, v))
     }
 
-    pub fn declare_var<S: Into<String>>(ident: S, expr: Box<Expr>) -> Box<Expr> {
+    pub fn var_decl<S: Into<String>>(ident: S, expr: Box<Expr>) -> Box<Expr> {
         Box::new(Expr::DeclareVar(ident.into(), expr))
     }
 
-    pub fn assign<S: Into<String>>(ident: S, expr: Box<Expr>) -> Box<Expr> {
+    pub fn var_assign<S: Into<String>>(ident: S, expr: Box<Expr>) -> Box<Expr> {
         Box::new(Expr::Assign(ident.into(), expr))
     }
 
-    pub fn funcall<S: Into<String>>(ident: S, args: Vec<Box<Expr>>) -> Box<Expr> {
+    pub fn fun_call<S: Into<String>>(ident: S, args: Vec<Box<Expr>>) -> Box<Expr> {
         Box::new(Expr::FunCall(ident.into(), args))
     }
 
-    pub fn fundecl<S: Into<String>>(ident: S, args: Vec<Ident>, body: Box<Expr>) -> Box<Expr> {
+    pub fn fun_decl<S: Into<String>>(ident: S, args: Vec<Ident>, body: Box<Expr>) -> Box<Expr> {
         Box::new(Expr::FunDecl(ident.into(), args, body))
     }
 

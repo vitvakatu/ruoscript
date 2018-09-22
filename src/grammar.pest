@@ -3,11 +3,11 @@ program = {
 }
 
 code_block = {
-    statement* ~ expr?
+    statement*
 }
 
 statement = _{
-    (fun_decl | var_decl | var_assign | (expr ~ ";") | while_loop | for_loop | if_cond | return_stmt)
+    (fun_decl | fun_call | var_decl | var_assign | while_loop | for_loop | if_cond | return_stmt)
 }
 
 fun_decl = {
@@ -19,11 +19,11 @@ arg_list = _{
 }
 
 var_decl = {
-    identifier ~ ":=" ~ expr ~ ";"
+    identifier ~ ":=" ~ expr
 }
 
 var_assign = {
-    identifier ~ "=" ~ expr ~ ";"
+    identifier ~ "=" ~ expr
 }
 
 while_loop = {
@@ -35,7 +35,7 @@ for_loop = {
 }
 
 return_stmt = {
-    "return" ~ expr ~ ";"
+    "return" ~ expr
 }
 
 expr = _{

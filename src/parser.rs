@@ -125,8 +125,72 @@ pub fn parse_string(string: &str) -> Box<Expr> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ast::{helpers::*, UnOp, BinOp};
+
+    macro_rules! assert_parse {
+        ($program:expr => $($e:expr),*) => {
+            assert_eq!(parse_string($program), block(vec![$($e),*]));
+        }
+    }
+
     #[test]
     fn empty() {
-        assert_eq!(parse_string(""), Box::new(Expr::Block(vec![])));
+        assert_parse!("" => );
+    }
+
+    #[test]
+    fn int_test() {
+        assert_parse!("return 1" => ret(int(1)));
+        assert_parse!("return 12345678" => ret(int(12345678)));
+        assert_parse!("return 0" => ret(int(0)));
+    }
+
+    #[test]
+    fn negative() {
+        assert_parse!("return -512" => ret(unop(UnOp::Minus, int(512))));
+        assert_parse!("return -0" => ret(unop(UnOp::Minus, int(0))));
+        assert_parse!("return -3.14" => ret(unop(UnOp::Minus, float(3.14))));
+        assert_parse!("return -0.0" => ret(unop(UnOp::Minus, float(0.0))));
+    }
+
+    #[test]
+    fn float_test() {
+        assert_parse!("return 3.14" => ret(float(3.14)));
+        assert_parse!("return 0.0" => ret(float(0.0)));
+        assert_parse!("return 0.141324" => ret(float(0.141324)));
+        assert_parse!("return 3.14e2" => ret(float(3.14e2)));
+        assert_parse!("return 3.14e-2" => ret(float(3.14e-2)));
+    }
+
+    #[test]
+    fn bool_test() {
+        assert_parse!("return true" => ret(bool(true)));
+        assert_parse!("return false" => ret(bool(false)));
+    }
+
+    #[test]
+    fn string_test() {
+        assert_parse!("return \"Hello, world\"" => ret(string("Hello, world")));
+        assert_parse!("return \"\"" => ret(string("")));
+    }
+
+    #[test]
+    fn var_decl_test() {
+        assert_parse!("a := 1" => var_decl("a", int(1)));
+        assert_parse!("a := \"test\"" => var_decl("a", string("test")));
+        assert_parse!("a := 3.14" => var_decl("a", float(3.14)));
+        assert_parse!("a := b" => var_decl("a", var("b")));
+        assert_parse!("a := foo()" => var_decl("a", fun_call("foo", vec![])));
+        assert_parse!("a := 3 + 4" => var_decl("a", binop(BinOp::Add, int(3), int(4))))
+    }
+
+    #[test]
+    fn var_assign_test() {
+        assert_parse!("a = 1" => var_assign("a", int(1)));
+        assert_parse!("a = \"test\"" => var_assign("a", string("test")));
+        assert_parse!("a = 3.14" => var_assign("a", float(3.14)));
+        assert_parse!("a = b" => var_assign("a", var("b")));
+        assert_parse!("a = foo()" => var_assign("a", fun_call("foo", vec![])));
+        assert_parse!("a = 3 + 4" => var_assign("a", binop(BinOp::Add, int(3), int(4))))
     }
 }
