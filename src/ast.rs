@@ -20,6 +20,74 @@ pub enum Expr {
     If(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
+pub mod helpers {
+    use super::*;
+
+    pub fn int(v: i64) -> Box<Expr> {
+        Box::new(Expr::Int(v))
+    }
+
+    pub fn float(v: f64) -> Box<Expr> {
+        Box::new(Expr::Float(v))
+    }
+
+    pub fn bool(v: bool) -> Box<Expr> {
+        Box::new(Expr::Bool(v))
+    }
+
+    pub fn string<S: Into<String>>(v: S) -> Box<Expr> {
+        Box::new(Expr::String(v.into()))
+    }
+
+    pub fn empty() -> Box<Expr> {
+        Box::new(Expr::Empty)
+    }
+
+    pub fn var<S: Into<String>>(v: S) -> Box<Expr> {
+        Box::new(Expr::Variable(v.into()))
+    }
+
+    pub fn binop(op: BinOp, l: Box<Expr>, r: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::BinOp(l, op, r))
+    }
+
+    pub fn unop(op: UnOp, v: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::UnOp(op, v))
+    }
+
+    pub fn declare_var<S: Into<String>>(ident: S, expr: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::DeclareVar(ident.into(), expr))
+    }
+
+    pub fn assign<S: Into<String>>(ident: S, expr: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::Assign(ident.into(), expr))
+    }
+
+    pub fn funcall<S: Into<String>>(ident: S, args: Vec<Box<Expr>>) -> Box<Expr> {
+        Box::new(Expr::FunCall(ident.into(), args))
+    }
+
+    pub fn fundecl<S: Into<String>>(ident: S, args: Vec<Ident>, body: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::FunDecl(ident.into(), args, body))
+    }
+
+    pub fn block(exprs: Vec<Box<Expr>>) -> Box<Expr> {
+        Box::new(Expr::Block(exprs))
+    }
+
+    pub fn while_loop(cond: Box<Expr>, body: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::WhileLoop(cond, body))
+    }
+
+    pub fn if_stmt(cond: Box<Expr>, pos: Box<Expr>, neg: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::If(cond, pos, neg))
+    }
+
+    pub fn ret(v: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::Return(v))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BinOp {
     Add,
