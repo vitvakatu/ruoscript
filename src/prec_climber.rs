@@ -8,21 +8,6 @@ use to_ast;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
-    Add,
-    Mul,
-    Sub,
-    Div,
-    Pow,
-    UnMinus,
-    UnNot,
-    Eq,
-    Neq,
-    Ge,
-    Gt,
-    Le,
-    Lt,
-    Or,
-    And,
     LParen,
     RParen,
     Int(i64),

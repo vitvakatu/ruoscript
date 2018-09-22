@@ -11,7 +11,7 @@ statement = _{
 }
 
 fun_decl = {
-    "def" ~ identifier ~ lparen ~ arg_list ~ rparen ~ lcurly ~ code_block ~ rcurly
+    "def" ~ identifier ~ lparen ~ arg_list ~ rparen ~ do_keyword ~ code_block ~ end_keyword
 }
 
 arg_list = _{
@@ -27,23 +27,31 @@ var_assign = {
 }
 
 while_loop = {
-    "while" ~ expr ~ lcurly ~ code_block ~ rcurly
+    "while" ~ expr ~ do_keyword ~ code_block ~ end_keyword
 }
 
 for_loop = {
-    "for" ~ identifier ~ "in" ~ expr ~ "," ~ expr ~ lcurly ~ code_block ~ rcurly
+    "for" ~ identifier ~ "in" ~ expr ~ "," ~ expr ~ do_keyword ~ code_block ~ end_keyword
 }
 
 return_stmt = {
     "return" ~ expr
 }
 
-expr = _{
-    (if_cond | fun_call | bin_expr)
+fun_call = {
+    (regular_fun_call | unary_fun_call | binary_fun_call)
 }
 
-fun_call = {
+regular_fun_call = {
     identifier ~ lparen ~ call_arg_list ~ rparen
+}
+
+unary_fun_call = {
+    identifier ~ expr
+}
+
+binary_fun_call = {
+    expr ~ identifier ~ expr
 }
 
 call_arg_list = _{
@@ -51,7 +59,7 @@ call_arg_list = _{
 }
 
 if_cond = {
-    "if" ~ expr ~ lcurly ~ code_block ~ rcurly ~ ("else" ~ lcurly ~ code_block ~ rcurly)?
+    "if" ~ expr ~ do_keyword ~ code_block ~ end_keyword ~ ("else" ~ do_keyword ~ code_block ~ end_keyword)?
 }
 
 digit = {
@@ -67,6 +75,8 @@ identifier = @{
 }
 
 keywords = {
+    "do" |
+    "end" |
     "for" |
     "return" |
     "def" |
@@ -74,10 +84,7 @@ keywords = {
     "else" |
     "while" |
     "true" |
-    "false" |
-    "and" |
-    "or" |
-    "not"
+    "false"
 }
 
 opt_sign = _{
@@ -100,44 +107,18 @@ string = @{
     "\"" ~ (!"\"" ~ any)* ~ "\""
 }
 
-bin_op = _{
-    op_add | op_sub | op_mul | op_div | op_pow |
-    op_eq | op_neq | op_ge | op_gt | op_le | op_lt |
-    op_and | op_or
+expr = _{
+    (if_cond | fun_call | primary)
 }
-op_add = { "+" }
-op_sub = { "-" }
-op_mul = { "*" }
-op_div = { "/" }
-op_pow = { "^" }
-op_eq = { "==" }
-op_neq = { "!=" }
-op_ge = { ">=" }
-op_gt = { ">" }
-op_le = { "<=" }
-op_lt = { "<" }
-op_and = { "&&" | "and" }
-op_or = { "||" | "or" }
 
-un_op = _{
-    op_not | op_minus
-}
-op_not = { "!" | "not" }
-op_minus = { "-" }
-
-bin_expr = {
-    term ~ ( bin_op ~ term)*
-}
-term = _{
-    primary | (lparen ~ bin_expr ~ rparen)
-}
 primary = _{
-    un_op? ~ (fun_call | identifier | boolean | float | int | string)
+    (identifier | boolean | float | int | string)
 }
+
 lparen = _{ "(" }
 rparen = _{ ")" }
-lcurly = _{ "{" }
-rcurly = _{ "}" }
+do_keyword = _{ "do" }
+end_keyword = _{ "end" }
 
 
 whitespace = _{ " " | "\t" | "\n" }

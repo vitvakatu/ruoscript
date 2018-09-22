@@ -3,11 +3,11 @@ extern crate pest;
 extern crate pest_derive;
 
 mod ast;
-mod prec_climber;
+//mod prec_climber;
 mod stack;
 mod types;
 mod value;
-mod vm;
+//mod vm;
 mod parser;
 
 use pest::{iterators::Pair, Parser as PestParser};

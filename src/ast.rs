@@ -8,8 +8,6 @@ pub enum Expr {
     String(String),
     Empty,
     Variable(Ident),
-    BinOp(Box<Expr>, BinOp, Box<Expr>),
-    UnOp(UnOp, Box<Expr>),
     DeclareVar(Ident, Box<Expr>),
     Assign(Ident, Box<Expr>),
     FunCall(Ident, Vec<Box<Expr>>),
@@ -86,29 +84,6 @@ pub mod helpers {
     pub fn ret(v: Box<Expr>) -> Box<Expr> {
         Box::new(Expr::Return(v))
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum BinOp {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Pow,
-    Gt,
-    Lt,
-    Ge,
-    Le,
-    NotEq,
-    Eq,
-    And,
-    Or,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum UnOp {
-    Not,
-    Minus,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
