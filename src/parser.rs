@@ -228,6 +228,11 @@ mod tests {
     }
 
     #[test]
+    fn empty() {
+        assert_parse!("" => );
+    }
+
+    #[test]
     fn int_test() {
         assert_parse!("123" => int(123));
         assert_parse!("0" => int(0));
