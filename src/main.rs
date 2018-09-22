@@ -4,6 +4,7 @@ extern crate pest_derive;
 
 mod ast;
 //mod prec_climber;
+mod climber;
 mod stack;
 mod types;
 mod value;

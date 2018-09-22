@@ -1,15 +1,19 @@
 //use pest::{Parser as PestParser, iterators::Pair};
 
-use std::{fs::File, io::{self, Read}};
+use std::{
+    fs::File,
+    io::{self, Read},
+};
 
-use ast::Expr;
 use ast::helpers::*;
+use ast::Expr;
 //use prec_climber::{tokenize, Parser};
+use climber::Climber;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FloatPart {
     Fraction,
-    Exponent
+    Exponent,
 }
 
 pub type Error = String;
@@ -22,7 +26,7 @@ pub enum State {
     Ident,
     String,
     Whitespace,
-    End
+    End,
 }
 
 impl State {
@@ -33,24 +37,20 @@ impl State {
                 let mut string: String = cs.iter().collect();
                 let number: i64 = match string.parse() {
                     Ok(n) => n,
-                    Err(e) => return Err(format!("Unable to parse integer: {}", e))
+                    Err(e) => return Err(format!("Unable to parse integer: {}", e)),
                 };
                 Ok(int(number))
-            },
+            }
             State::Float(_) => {
                 let string: String = cs.iter().collect();
                 let number: f64 = match string.parse() {
                     Ok(n) => n,
-                    Err(e) => return Err(format!("Unable to parse float: {}", e))
+                    Err(e) => return Err(format!("Unable to parse float: {}", e)),
                 };
                 Ok(float(number))
-            },
-            State::Ident => {
-                Ok(ident(cs.iter().collect::<String>()))
-            },
-            State::String => {
-                Ok(string(cs.iter().skip(1).collect::<String>()))
-            },
+            }
+            State::Ident => Ok(identifier(cs.iter().collect::<String>())),
+            State::String => Ok(string(cs.iter().skip(1).collect::<String>())),
             State::Whitespace => unreachable!("Whitespace"),
             State::End => unreachable!("End"),
         };
@@ -70,7 +70,12 @@ impl State {
         }
     }
 
-    pub fn read_char(&mut self, c: char, nc: Option<char>, cs: &mut Vec<char>) -> Result<Option<Box<Expr>>, Error> {
+    pub fn read_char(
+        &mut self,
+        c: char,
+        nc: Option<char>,
+        cs: &mut Vec<char>,
+    ) -> Result<Option<Box<Expr>>, Error> {
         match *self {
             State::End => unreachable!(),
             State::Whitespace => {
@@ -133,7 +138,7 @@ impl State {
                 Ok(res)
             }
             State::Ident => {
-                let res  = self.try_whitespace(c,cs)?;
+                let res = self.try_whitespace(c, cs)?;
                 if res.is_none() {
                     cs.push(c);
                 }
@@ -193,10 +198,15 @@ impl Parser {
             stack.push(expr);
         }
 
-        Ok(block(stack))
+        if !stack.is_empty() {
+            let mut climber = Climber::new(stack.iter());
+            let ast = climber.expression(0);
+            Ok(block(vec![ast]))
+        } else {
+            Ok(block(vec![]))
+        }
     }
 }
-
 
 pub fn parse_file(filename: &str) -> io::Result<Box<Expr>> {
     let mut input = String::new();
@@ -224,7 +234,7 @@ mod tests {
     macro_rules! assert_not_parse {
         ($program:expr) => {
             assert!(parse_string($program).is_err());
-        }
+        };
     }
 
     #[test]
@@ -268,15 +278,14 @@ mod tests {
 
     #[test]
     fn ident_test() {
-        assert_parse!("a" => ident("a"));
-        assert_parse!("abc" => ident("abc"));
-        assert_parse!("a123" => ident("a123"));
-        assert_parse!("_213" => ident("_213"));
-        assert_parse!("_" => ident("_"));
-        assert_parse!("+" => ident("+"));
-        assert_parse!("-" => ident("-"));
-        assert_parse!(">=" => ident(">="));
-        assert_parse!("∮" => ident("∮"));
+        assert_parse!("a" => identifier("a"));
+        assert_parse!("abc" => identifier("abc"));
+        assert_parse!("a123" => identifier("a123"));
+        assert_parse!("_213" => identifier("_213"));
+        assert_parse!("_" => identifier("_"));
+        assert_parse!("+" => identifier("+"));
+        assert_parse!(">=" => identifier(">="));
+        assert_parse!("∮" => identifier("∮"));
     }
 
     #[test]
@@ -284,5 +293,21 @@ mod tests {
         assert_parse!("\"\"" => string(""));
         assert_parse!("\"Hello\"" => string("Hello"));
         assert_parse!("\"∮ E⋅da = Q,  n → ∞, ∑ f(i) = ∏ g(i)\"" => string("∮ E⋅da = Q,  n → ∞, ∑ f(i) = ∏ g(i)"));
+    }
+
+    #[test]
+    fn unary_exprs() {
+        assert_parse!("- a" => fun_call("-", vec![identifier("a")]));
+    }
+
+    #[test]
+    fn binary_exprs() {
+        assert_parse!("1 + 2" => fun_call("+", vec![int(1), int(2)]));
+        assert_parse!("1 + a" => fun_call("+", vec![int(1), identifier("a")]));
+        assert_parse!("a + 2" => fun_call("+", vec![identifier("a"), int(2)]));
+        assert_parse!("a + b" => fun_call("+", vec![identifier("a"), identifier("b")]));
+        assert_parse!("1 - 2" => fun_call("-", vec![int(1), int(2)]));
+        assert_parse!("1 + 3 * 4" => fun_call("+", vec![int(1), fun_call("*", vec![int(3), int(4)])]));
+        assert_parse!("1 * 3 + 4" => fun_call("+", vec![fun_call("*", vec![int(1), int(3)]), int(4)]));
     }
 }

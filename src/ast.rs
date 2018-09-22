@@ -41,7 +41,7 @@ pub mod helpers {
         Box::new(Expr::Empty)
     }
 
-    pub fn ident<S: Into<String>>(v: S) -> Box<Expr> {
+    pub fn identifier<S: Into<String>>(v: S) -> Box<Expr> {
         Box::new(Expr::Ident(v.into()))
     }
 
