@@ -1,109 +1,171 @@
-use pest::{Parser as PestParser, iterators::Pair};
+//use pest::{Parser as PestParser, iterators::Pair};
 
 use std::{fs::File, io::{self, Read}};
 
-use ast::{Expr, BinOp};
-use prec_climber::{tokenize, Parser};
+use ast::Expr;
+use ast::helpers::*;
+//use prec_climber::{tokenize, Parser};
 
-const _GRAMMAR: &str = include_str!("grammar.pest");
+#[derive(Debug, Clone, PartialEq)]
+pub enum State {
+    Start,
+    Number,
+    Float,
+    Ident,
+    String,
+    Whitespace,
+    End
+}
 
-#[derive(Parser)]
-#[grammar = "grammar.pest"]
-pub struct RuoParser;
+impl State {
+    pub fn fold(&mut self, cs: &mut Vec<char>) -> Option<Box<Expr>> {
+        let res = match *self {
+            State::Start => None,
+            State::Number => {
+                let string: String = cs.iter().collect();
+                let number: i64 = string.parse().expect("Could not parse integer");
+                Some(int(number))
+            },
+            State::Float => {
+                let string: String = cs.iter().collect();
+                let number: f64 = string.parse().expect("Could not parse float");
+                Some(float(number))
+            },
+            State::Ident => {
+                Some(var(cs.iter().collect::<String>()))
+            },
+            State::String => {
+                Some(var(cs.iter().collect::<String>()))
+            },
+            State::Whitespace => unreachable!("Whitespace"),
+            State::End => unreachable!("End"),
+        };
+        if res.is_some() {
+            cs.clear();
+        }
+        res
+    }
 
-pub fn to_ast(pair: Pair<Rule>) -> Box<Expr> {
-    match pair.as_rule() {
-        Rule::code_block => {
-            let mut exprs = Vec::new();
-            for each in pair.into_inner() {
-                exprs.push(to_ast(each));
+    fn try_whitespace(&mut self, c: char, cs: &mut Vec<char>) -> Option<Box<Expr>> {
+        if c.is_whitespace() {
+            let res = self.fold(cs);
+            *self = State::Whitespace;
+            res
+        } else {
+            None
+        }
+    }
+
+    pub fn read_char(&mut self, c: char, cs: &mut Vec<char>) -> Option<Box<Expr>> {
+        match *self {
+            State::End => unreachable!(),
+            State::Whitespace => {
+                if !c.is_whitespace() {
+                    if c.is_numeric() {
+                        *self = State::Number;
+                        cs.clear();
+                        cs.push(c);
+                    } else if c == '"' {
+                        *self = State::String;
+                        cs.clear();
+                        cs.push(c);
+                    } else {
+                        *self = State::Ident;
+                        cs.clear();
+                        cs.push(c);
+                    }
+                }
+                None
             }
-            Box::new(Expr::Block(exprs))
-        }
-        Rule::bin_expr => {
-            let tokens = tokenize(pair);
-            let mut parser = Parser::new(tokens.iter());
-            parser.expression(0)
-        }
-        Rule::var_decl => {
-            let mut inner = pair.into_inner();
-            let ident = inner.next().unwrap().as_str().to_string();
-            let arg = inner.next().unwrap();
-            Box::new(Expr::DeclareVar(ident, to_ast(arg)))
-        }
-        Rule::var_assign => {
-            let mut inner = pair.into_inner();
-            let ident = inner.next().unwrap().as_str().to_string();
-            let arg = inner.next().unwrap();
-            Box::new(Expr::Assign(ident, to_ast(arg)))
-        }
-        Rule::while_loop => {
-            let mut inner = pair.into_inner();
-            let cond = to_ast(inner.next().unwrap());
-            let code = to_ast(inner.next().unwrap());
-            Box::new(Expr::WhileLoop(cond, code))
-        }
-        Rule::for_loop => {
-            let mut inner = pair.into_inner();
-            let ident = inner.next().unwrap().as_str().to_string();
-            let lexpr = to_ast(inner.next().unwrap());
-            let rexpr = to_ast(inner.next().unwrap());
-            let body = to_ast(inner.next().unwrap());
-            let for_loop = Box::new(Expr::Block(vec![
-                Box::new(Expr::DeclareVar(ident.clone(), lexpr)),
-                Box::new(Expr::WhileLoop(
-                    Box::new(Expr::BinOp(
-                        Box::new(Expr::Variable(ident.clone())),
-                        BinOp::Lt,
-                        rexpr,
-                    )),
-                    Box::new(Expr::Block(vec![
-                        body,
-                        Box::new(Expr::Assign(
-                            ident.clone(),
-                            Box::new(Expr::BinOp(
-                                Box::new(Expr::Variable(ident.clone())),
-                                BinOp::Add,
-                                Box::new(Expr::Int(1)),
-                            )),
-                        )),
-                    ])),
-                )),
-            ]));
-            for_loop
-        }
-        Rule::fun_call => {
-            let mut inner = pair.into_inner();
-            let ident = inner.next().unwrap().as_str().to_string();
-            let args = inner.map(to_ast).collect();
-            Box::new(Expr::FunCall(ident, args))
-        }
-        Rule::fun_decl => {
-            let mut inner = pair.into_inner();
-            let ident = inner.next().unwrap().as_str().to_string();
-            let mut body = inner.next().unwrap();
-            let mut args = Vec::new();
-            while let Some(pair) = inner.next() {
-                args.push(body.clone());
-                body = pair.clone();
+            State::Number => {
+                println!("Number, {:?}, {:?}", c, cs);
+                let res = self.try_whitespace(c, cs);
+                if res.is_none() {
+                    if c.is_numeric() {
+                        cs.push(c);
+                    } else if c == '.' {
+                        cs.push(c);
+                        *self = State::Float;
+                    } else {
+                        panic!("Expected number or .");
+                    }
+                }
+                res
             }
-            let args = args.into_iter().map(|p| p.as_str().to_string()).collect();
-            Box::new(Expr::FunDecl(ident, args, to_ast(body)))
+            State::Float => {
+                let res = self.try_whitespace(c, cs);
+                if res.is_none() {
+                    if c.is_numeric() {
+                        cs.push(c);
+                    } else {
+                        panic!("Expected number");
+                    }
+                }
+                res
+            }
+            State::Ident => {
+                let res  = self.try_whitespace(c,cs);
+                if res.is_none() {
+                    cs.push(c);
+                }
+                res
+            }
+            State::String => {
+                cs.push(c);
+                if c == '"' {
+                    self.fold(cs)
+                } else {
+                    None
+                }
+            }
+            State::Start => {
+                println!("Start, {}", c);
+                if c.is_whitespace() {
+                    *self = State::Whitespace;
+                } else if c.is_numeric() {
+                    *self = State::Number;
+                    cs.clear();
+                    cs.push(c);
+                } else if c.is_alphabetic() {
+                    *self = State::Ident;
+                    cs.clear();
+                    cs.push(c);
+                } else if c == '"' {
+                    *self = State::String;
+                    cs.clear();
+                    cs.push(c);
+                }
+                None
+            }
         }
-        Rule::if_cond => {
-            let mut inner = pair.into_inner();
-            let cond = to_ast(inner.next().unwrap());
-            let pos = to_ast(inner.next().unwrap());
-            let neg = inner
-                .next()
-                .map(|p| to_ast(p))
-                .unwrap_or(Box::new(Expr::Empty));
-            Box::new(Expr::If(cond, pos, neg))
-        }
-        Rule::return_stmt => Box::new(Expr::Return(to_ast(pair.into_inner().next().unwrap()))),
-        _ => unreachable!(),
     }
 }
+
+pub struct Parser;
+
+impl Parser {
+    pub fn parse(input: &str) -> Box<Expr> {
+        let mut stack: Vec<Box<Expr>> = Vec::new();
+        let mut state = State::Start;
+        let mut cs = Vec::new();
+
+        let mut chars = input.char_indices().peekable();
+        while let Some((i, c)) = chars.next() {
+            let expr_opt = state.read_char(c, &mut cs);
+            if expr_opt.is_some() {
+                stack.push(expr_opt.unwrap());
+            }
+        }
+
+        let expr_opt = state.fold(&mut cs);
+        if expr_opt.is_some() {
+            stack.push(expr_opt.unwrap());
+        }
+
+        return block(stack);
+    }
+}
+
 
 pub fn parse_file(filename: &str) -> io::Result<Box<Expr>> {
     let mut input = String::new();
@@ -113,19 +175,14 @@ pub fn parse_file(filename: &str) -> io::Result<Box<Expr>> {
 }
 
 pub fn parse_string(string: &str) -> Box<Expr> {
-    let ast = RuoParser::parse(Rule::program, string)
-        .unwrap()
-        .next()
-        .unwrap();
-
-    let ast = to_ast(ast.into_inner().next().unwrap());
+    let ast = Parser::parse(string);
     ast
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ast::{helpers::*, UnOp, BinOp};
+    //use ast::{helpers::*, UnOp, BinOp};
 
     macro_rules! assert_parse {
         ($program:expr => $($e:expr),*) => {
@@ -134,63 +191,8 @@ mod tests {
     }
 
     #[test]
-    fn empty() {
-        assert_parse!("" => );
-    }
-
-    #[test]
     fn int_test() {
-        assert_parse!("return 1" => ret(int(1)));
-        assert_parse!("return 12345678" => ret(int(12345678)));
-        assert_parse!("return 0" => ret(int(0)));
+        assert_parse!("123" => int(123));
     }
 
-    #[test]
-    fn negative() {
-        assert_parse!("return -512" => ret(unop(UnOp::Minus, int(512))));
-        assert_parse!("return -0" => ret(unop(UnOp::Minus, int(0))));
-        assert_parse!("return -3.14" => ret(unop(UnOp::Minus, float(3.14))));
-        assert_parse!("return -0.0" => ret(unop(UnOp::Minus, float(0.0))));
-    }
-
-    #[test]
-    fn float_test() {
-        assert_parse!("return 3.14" => ret(float(3.14)));
-        assert_parse!("return 0.0" => ret(float(0.0)));
-        assert_parse!("return 0.141324" => ret(float(0.141324)));
-        assert_parse!("return 3.14e2" => ret(float(3.14e2)));
-        assert_parse!("return 3.14e-2" => ret(float(3.14e-2)));
-    }
-
-    #[test]
-    fn bool_test() {
-        assert_parse!("return true" => ret(bool(true)));
-        assert_parse!("return false" => ret(bool(false)));
-    }
-
-    #[test]
-    fn string_test() {
-        assert_parse!("return \"Hello, world\"" => ret(string("Hello, world")));
-        assert_parse!("return \"\"" => ret(string("")));
-    }
-
-    #[test]
-    fn var_decl_test() {
-        assert_parse!("a := 1" => var_decl("a", int(1)));
-        assert_parse!("a := \"test\"" => var_decl("a", string("test")));
-        assert_parse!("a := 3.14" => var_decl("a", float(3.14)));
-        assert_parse!("a := b" => var_decl("a", var("b")));
-        assert_parse!("a := foo()" => var_decl("a", fun_call("foo", vec![])));
-        assert_parse!("a := 3 + 4" => var_decl("a", binop(BinOp::Add, int(3), int(4))))
-    }
-
-    #[test]
-    fn var_assign_test() {
-        assert_parse!("a = 1" => var_assign("a", int(1)));
-        assert_parse!("a = \"test\"" => var_assign("a", string("test")));
-        assert_parse!("a = 3.14" => var_assign("a", float(3.14)));
-        assert_parse!("a = b" => var_assign("a", var("b")));
-        assert_parse!("a = foo()" => var_assign("a", fun_call("foo", vec![])));
-        assert_parse!("a = 3 + 4" => var_assign("a", binop(BinOp::Add, int(3), int(4))))
-    }
 }

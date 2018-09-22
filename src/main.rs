@@ -12,14 +12,14 @@ mod parser;
 
 use pest::{iterators::Pair, Parser as PestParser};
 
-use prec_climber::{tokenize, Parser};
+//use prec_climber::{tokenize, Parser};
 use std::env;
 use std::fs::File;
 use std::io::{self, Read};
 
-use ast::{BinOp, Expr};
+use ast::Expr;
 
-use parser::to_ast;
+//use parser::to_ast;
 
 fn main() -> io::Result<()> {
     /*let filename = env::args()

@@ -45,14 +45,6 @@ pub mod helpers {
         Box::new(Expr::Variable(v.into()))
     }
 
-    pub fn binop(op: BinOp, l: Box<Expr>, r: Box<Expr>) -> Box<Expr> {
-        Box::new(Expr::BinOp(l, op, r))
-    }
-
-    pub fn unop(op: UnOp, v: Box<Expr>) -> Box<Expr> {
-        Box::new(Expr::UnOp(op, v))
-    }
-
     pub fn var_decl<S: Into<String>>(ident: S, expr: Box<Expr>) -> Box<Expr> {
         Box::new(Expr::DeclareVar(ident.into(), expr))
     }
