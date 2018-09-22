@@ -309,5 +309,6 @@ mod tests {
         assert_parse!("1 - 2" => fun_call("-", vec![int(1), int(2)]));
         assert_parse!("1 + 3 * 4" => fun_call("+", vec![int(1), fun_call("*", vec![int(3), int(4)])]));
         assert_parse!("1 * 3 + 4" => fun_call("+", vec![fun_call("*", vec![int(1), int(3)]), int(4)]));
+        assert_parse!("1 - - b" => fun_call("-", vec![int(1), fun_call("-", vec![identifier("b")])]));
     }
 }

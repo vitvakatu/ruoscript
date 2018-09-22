@@ -7,9 +7,20 @@ use ast::helpers::*;
 
 fn get_lbp(func: &str) -> u32 {
     match func {
-        "+" => 60,
+        "^" => 200,
+        "!" => 100,
+        "/" => 80,
         "*" => 80,
+        "+" => 60,
         "-" => 60,
+        "==" => 30,
+        ">=" => 30,
+        "<=" => 30,
+        "!=" => 30,
+        "<" => 30,
+        ">" => 30,
+        "&&" => 10,
+        "||" => 5,
         _ => 0,
     }
 }
@@ -17,15 +28,26 @@ fn get_lbp(func: &str) -> u32 {
 fn is_unary(func: &str) -> bool {
     match func {
         "-" => true,
+        "!" => true,
         _ => false,
     }
 }
 
 fn is_binary(func: &str) -> bool {
     match func {
+        "^" => true,
+        "/" => true,
+        "*" => true,
         "+" => true,
         "-" => true,
-        "*" => true,
+        "==" => true,
+        ">=" => true,
+        "<=" => true,
+        "!=" => true,
+        "<" => true,
+        ">" => true,
+        "&&" => true,
+        "||" => true,
         _ => false,
     }
 }
