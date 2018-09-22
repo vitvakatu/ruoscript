@@ -7,7 +7,7 @@ pub enum Expr {
     Bool(bool),
     String(String),
     Empty,
-    Variable(Ident),
+    Ident(Ident),
     DeclareVar(Ident, Box<Expr>),
     Assign(Ident, Box<Expr>),
     FunCall(Ident, Vec<Box<Expr>>),
@@ -41,8 +41,8 @@ pub mod helpers {
         Box::new(Expr::Empty)
     }
 
-    pub fn var<S: Into<String>>(v: S) -> Box<Expr> {
-        Box::new(Expr::Variable(v.into()))
+    pub fn ident<S: Into<String>>(v: S) -> Box<Expr> {
+        Box::new(Expr::Ident(v.into()))
     }
 
     pub fn var_decl<S: Into<String>>(ident: S, expr: Box<Expr>) -> Box<Expr> {

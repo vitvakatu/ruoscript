@@ -46,10 +46,10 @@ impl State {
                 Ok(float(number))
             },
             State::Ident => {
-                Ok(var(cs.iter().collect::<String>()))
+                Ok(ident(cs.iter().collect::<String>()))
             },
             State::String => {
-                Ok(var(cs.iter().collect::<String>()))
+                Ok(string(cs.iter().skip(1).collect::<String>()))
             },
             State::Whitespace => unreachable!("Whitespace"),
             State::End => unreachable!("End"),
@@ -140,10 +140,10 @@ impl State {
                 Ok(res)
             }
             State::String => {
-                cs.push(c);
                 if c == '"' {
                     self.fold(cs).map(Some)
                 } else {
+                    cs.push(c);
                     Ok(None)
                 }
             }
@@ -154,16 +154,16 @@ impl State {
                     *self = State::Number;
                     cs.clear();
                     cs.push(c);
-                } else if c.is_alphabetic() {
-                    *self = State::Ident;
-                    cs.clear();
-                    cs.push(c);
                 } else if c == '"' {
                     *self = State::String;
                     cs.clear();
                     cs.push(c);
+                } else if c == '.' {
+                    return Err("Found illegal identifier".into());
                 } else {
-                    return Err("Expected whitespace, number, \" or alphabetic character".into());
+                    *self = State::Ident;
+                    cs.clear();
+                    cs.push(c);
                 }
                 Ok(None)
             }
@@ -188,8 +188,10 @@ impl Parser {
             }
         }
 
-        let expr = state.fold(&mut cs)?;
-        stack.push(expr);
+        if !cs.is_empty() {
+            let expr = state.fold(&mut cs)?;
+            stack.push(expr);
+        }
 
         Ok(block(stack))
     }
@@ -259,4 +261,23 @@ mod tests {
         assert_not_parse!("-0.03e-3+2");
     }
 
+    #[test]
+    fn ident_test() {
+        assert_parse!("a" => ident("a"));
+        assert_parse!("abc" => ident("abc"));
+        assert_parse!("a123" => ident("a123"));
+        assert_parse!("_213" => ident("_213"));
+        assert_parse!("_" => ident("_"));
+        assert_parse!("+" => ident("+"));
+        assert_parse!("-" => ident("-"));
+        assert_parse!(">=" => ident(">="));
+        assert_parse!("∮" => ident("∮"));
+    }
+
+    #[test]
+    fn string_test() {
+        assert_parse!("\"\"" => string(""));
+        assert_parse!("\"Hello\"" => string("Hello"));
+        assert_parse!("\"∮ E⋅da = Q,  n → ∞, ∑ f(i) = ∏ g(i)\"" => string("∮ E⋅da = Q,  n → ∞, ∑ f(i) = ∏ g(i)"));
+    }
 }
