@@ -1,6 +1,6 @@
 use ast::{BinOp, Expr, UnOp};
 use pest::iterators::Pair;
-use Rule;
+use parser::Rule;
 
 use std::iter::Peekable;
 use std::slice::Iter;
