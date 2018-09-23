@@ -395,5 +395,6 @@ mod tests {
         assert_parse!("3 * (8 - 5)" => mul(int(3), sub(int(8), int(5))));
         assert_parse!("3 - (8 * 5)" => sub(int(3), mul(int(8), int(5))));
         assert_parse!("3 - 8 * 5" => sub(int(3), mul(int(8), int(5))));
+        assert_parse!("2 ^ 3 ^ 4" => pow(int(2), pow(int(3), int(4))));
     }
 }

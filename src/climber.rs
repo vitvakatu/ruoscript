@@ -52,6 +52,10 @@ fn is_binary(func: &str) -> bool {
     }
 }
 
+fn is_right_assoc(func: &str) -> bool {
+    func == "^"
+}
+
 impl Expr {
     pub fn nud(&self, parser: &mut Climber) -> Box<Expr> {
         match *self {
@@ -74,11 +78,15 @@ impl Expr {
     pub fn led(&self, parser: &mut Climber, lhs: Box<Expr>) -> Box<Expr> {
         match *self {
             Expr::Ident(ref ident) => {
-                let lbp = get_lbp(&ident);
+                let lbp = if is_right_assoc(&ident) {
+                    get_lbp(&ident) - 1
+                } else {
+                    get_lbp(&ident)
+                };
                 let rhs = parser.expression(lbp);
                 fun_call(ident.clone(), vec![lhs, rhs])
             }
-            _ => unreachable!(),
+            _ => unreachable!("Led"),
         }
     }
 }
