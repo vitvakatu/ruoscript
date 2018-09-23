@@ -211,7 +211,10 @@ impl State {
                     stack.push(res);
                     Ok(())
                 } else if !is_valid_ident_symbol(c) {
-                    Err("Found illegal identifier".into())
+                    stack.push(self.fold(cs)?.unwrap());
+                    *self = State::OperatorIdent;
+                    cs.push(c);
+                    Ok(())
                 } else {
                     cs.push(c);
                     Ok(())
@@ -228,7 +231,10 @@ impl State {
                     cs.push(c);
                     Ok(())
                 } else if is_valid_ident_symbol(c) {
-                    Err("Found illegal operator identifier".into())
+                    stack.push(self.fold(cs)?.unwrap());
+                    *self = State::Ident;
+                    cs.push(c);
+                    Ok(())
                 } else {
                     cs.push(c);
                     Ok(())
@@ -291,8 +297,6 @@ impl Parser {
             let expr = state.fold(&mut cs)?;
             stack.push(expr.unwrap());
         }
-
-        println!("Stack: {:?}", stack);
 
         if !stack.is_empty() {
             let mut climber = Climber::new(stack.iter());
@@ -391,21 +395,23 @@ mod tests {
 
     #[test]
     fn binary_exprs() {
-        env_logger::init();
         assert_parse!("1 + 2" => add(int(1), int(2)));
         assert_parse!("1+2" => add(int(1), int(2)));
         assert_parse!("1 + a" => add(int(1), identifier("a")));
         assert_parse!("a + 2" => add(identifier("a"), int(2)));
         assert_parse!("a + b" => add(identifier("a"), identifier("b")));
+        assert_parse!("a+b" => add(identifier("a"), identifier("b")));
         assert_parse!("1 - 2" => sub(int(1), int(2)));
         assert_parse!("(1 - 2)" => sub(int(1), int(2)));
         assert_parse!("1 + 3 * 4" => add(int(1), mul(int(3), int(4))));
         assert_parse!("1 * 3 + 4" => add(mul(int(1), int(3)), int(4)));
+        assert_parse!("1*3+4" => add(mul(int(1), int(3)), int(4)));
         assert_parse!("1 - - b" => sub(int(1), fun_call("-", vec![identifier("b")])));
         assert_parse!("3 * (8 - 5)" => mul(int(3), sub(int(8), int(5))));
         assert_parse!("3 - (8 * 5)" => sub(int(3), mul(int(8), int(5))));
         assert_parse!("3-(8*5)" => sub(int(3), mul(int(8), int(5))));
         assert_parse!("3 - 8 * 5" => sub(int(3), mul(int(8), int(5))));
         assert_parse!("2 ^ 3 ^ 4" => pow(int(2), pow(int(3), int(4))));
+        assert_parse!("a^b^c" => pow(identifier("a"), pow(identifier("b"), identifier("c"))));
     }
 }

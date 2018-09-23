@@ -134,7 +134,6 @@ impl<'a> Climber<'a> {
     }
 
     pub fn expression(&mut self, rbp: u32) -> Box<Expr> {
-        println!("Climbing: {:?}", self.tokens);
         let mut left = self.parse_nud();
         while self.next_binds_tighter_than(rbp) {
             left = self.parse_led(left);
