@@ -104,11 +104,12 @@ impl<'a> Climber<'a> {
 
     pub fn next_binds_tighter_than(&mut self, rbp: u32) -> bool {
         self.tokens.peek().map_or(false, |t| {
-            if let Expr::Ident(ref ident) = ***t {
-                get_lbp(&ident) > rbp
+            let lbp = if let Expr::Ident(ref ident) = ***t {
+                get_lbp(&ident)
             } else {
-                false
-            }
+                0
+            };
+            lbp > rbp
         })
     }
 
@@ -133,6 +134,7 @@ impl<'a> Climber<'a> {
     }
 
     pub fn expression(&mut self, rbp: u32) -> Box<Expr> {
+        println!("Climbing: {:?}", self.tokens);
         let mut left = self.parse_nud();
         while self.next_binds_tighter_than(rbp) {
             left = self.parse_led(left);

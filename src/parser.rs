@@ -7,7 +7,6 @@ use std::{
 
 use ast::helpers::*;
 use ast::Expr;
-//use prec_climber::{tokenize, Parser};
 use climber::Climber;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -24,9 +23,18 @@ pub enum State {
     Number,
     Float(FloatPart),
     Ident,
+    OperatorIdent,
     String,
     Whitespace,
     End,
+}
+
+fn is_valid_ident_symbol(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_'
+}
+
+fn is_valid_first_ident_symbol(c: char) -> bool {
+    c.is_ascii_alphabetic() || c == '_'
 }
 
 impl State {
@@ -51,6 +59,7 @@ impl State {
                 Ok(Some(float(number)))
             }
             State::Ident => Ok(Some(identifier(cs.iter().collect::<String>()))),
+            State::OperatorIdent => Ok(Some(identifier(cs.iter().collect::<String>()))),
             State::String => Ok(Some(string(cs.iter().skip(1).collect::<String>()))),
             State::Whitespace => Ok(None),
             State::End => Ok(None),
@@ -99,26 +108,13 @@ impl State {
         if let Some(paren) = self.try_parens(c, paren_counter)? {
             match *self {
                 State::String => {}
-                State::Whitespace => {
-                    stack.push(paren);
-                    *self = State::Start;
-                    return Ok(());
-                }
                 _ => {
                     if let Some(res) = self.fold(cs)? {
-                        match *paren {
-                            Expr::LParen => {
-                                stack.push(paren);
-                                stack.push(res);
-                            }
-                            Expr::RParen => {
-                                stack.push(res);
-                                stack.push(paren);
-                            }
-                            _ => unreachable!(),
-                        }
+                        stack.push(res);
                     }
-                    return Ok(());
+                    stack.push(paren);
+                    *self = State::Start;
+                    return Ok(())
                 }
             }
         }
@@ -135,8 +131,12 @@ impl State {
                         *self = State::String;
                         cs.clear();
                         cs.push(c);
-                    } else {
+                    } else if is_valid_first_ident_symbol(c) {
                         *self = State::Ident;
+                        cs.clear();
+                        cs.push(c);
+                    } else {
+                        *self = State::OperatorIdent;
                         cs.clear();
                         cs.push(c);
                     }
@@ -156,8 +156,12 @@ impl State {
                     } else if c == '.' {
                         cs.push(c);
                         *self = State::Float(FloatPart::Fraction);
+                    } else if !is_valid_first_ident_symbol(c) {
+                        stack.push(self.fold(cs)?.unwrap());
+                        *self = State::OperatorIdent;
+                        cs.push(c);
                     } else {
-                        return Err("Expected number or .".into());
+                        return Err("Found illegal integer number".into());
                     }
                     Ok(())
                 }
@@ -173,8 +177,12 @@ impl State {
                     } else if c == 'e' || c == 'E' {
                         cs.push(c);
                         *self = State::Float(FloatPart::Exponent);
+                    } else if !is_valid_first_ident_symbol(c) {
+                        stack.push(self.fold(cs)?.unwrap());
+                        *self = State::OperatorIdent;
+                        cs.push(c);
                     } else {
-                        return Err("Expected number or e or E".into());
+                        return Err("Found illegal floating point number".into());
                     }
                     Ok(())
                 }
@@ -187,8 +195,12 @@ impl State {
                 } else {
                     if c.is_numeric() || c == '-' || c == '+' {
                         cs.push(c);
+                    } else if !is_valid_first_ident_symbol(c) {
+                        stack.push(self.fold(cs)?.unwrap());
+                        *self = State::OperatorIdent;
+                        cs.push(c);
                     } else {
-                        return Err("Expected number or -".into());
+                        return Err("Found illegal floating point number".into());
                     }
                     Ok(())
                 }
@@ -198,6 +210,25 @@ impl State {
                 if let Some(res) = res {
                     stack.push(res);
                     Ok(())
+                } else if !is_valid_ident_symbol(c) {
+                    Err("Found illegal identifier".into())
+                } else {
+                    cs.push(c);
+                    Ok(())
+                }
+            }
+            State::OperatorIdent => {
+                let res = self.try_whitespace(c, cs)?;
+                if let Some(res) = res {
+                    stack.push(res);
+                    Ok(())
+                } else if c.is_numeric() {
+                    stack.push(self.fold(cs)?.unwrap());
+                    *self = State::Number;
+                    cs.push(c);
+                    Ok(())
+                } else if is_valid_ident_symbol(c) {
+                    Err("Found illegal operator identifier".into())
                 } else {
                     cs.push(c);
                     Ok(())
@@ -222,10 +253,14 @@ impl State {
                     *self = State::String;
                     cs.clear();
                     cs.push(c);
-                } else if c == '.' {
-                    return Err("Found illegal identifier".into());
-                } else {
+                } else if is_valid_first_ident_symbol(c) {
                     *self = State::Ident;
+                    cs.clear();
+                    cs.push(c);
+                } else if c == '.' {
+                    return Err("Found unexpected '.'".into());
+                } else {
+                    *self = State::OperatorIdent;
                     cs.clear();
                     cs.push(c);
                 }
@@ -256,6 +291,8 @@ impl Parser {
             let expr = state.fold(&mut cs)?;
             stack.push(expr.unwrap());
         }
+
+        println!("Stack: {:?}", stack);
 
         if !stack.is_empty() {
             let mut climber = Climber::new(stack.iter());
@@ -310,7 +347,6 @@ mod tests {
         assert_parse!("-1" => int(-1));
         assert_parse!("-0" => int(0));
         assert_parse!("3_000_000" => int(3_000_000));
-        assert_not_parse!("1-23");
     }
 
     #[test]
@@ -327,13 +363,6 @@ mod tests {
         assert_parse!("1.6e+7" => float(1.6e7));
         assert_parse!("1.6E7" => float(1.6e7));
         assert_parse!("-1.6e7" => float(-1.6e7));
-        assert_not_parse!(".0");
-        assert_not_parse!("3.14B2");
-        assert_not_parse!(".3");
-        assert_not_parse!("0.0.4");
-        assert_not_parse!("-0.03-3");
-        assert_not_parse!("-0.03e-3-2");
-        assert_not_parse!("-0.03e-3+2");
     }
 
     #[test]
@@ -362,7 +391,9 @@ mod tests {
 
     #[test]
     fn binary_exprs() {
+        env_logger::init();
         assert_parse!("1 + 2" => add(int(1), int(2)));
+        assert_parse!("1+2" => add(int(1), int(2)));
         assert_parse!("1 + a" => add(int(1), identifier("a")));
         assert_parse!("a + 2" => add(identifier("a"), int(2)));
         assert_parse!("a + b" => add(identifier("a"), identifier("b")));
@@ -373,6 +404,7 @@ mod tests {
         assert_parse!("1 - - b" => sub(int(1), fun_call("-", vec![identifier("b")])));
         assert_parse!("3 * (8 - 5)" => mul(int(3), sub(int(8), int(5))));
         assert_parse!("3 - (8 * 5)" => sub(int(3), mul(int(8), int(5))));
+        assert_parse!("3-(8*5)" => sub(int(3), mul(int(8), int(5))));
         assert_parse!("3 - 8 * 5" => sub(int(3), mul(int(8), int(5))));
         assert_parse!("2 ^ 3 ^ 4" => pow(int(2), pow(int(3), int(4))));
     }
