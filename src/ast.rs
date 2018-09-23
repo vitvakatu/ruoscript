@@ -86,6 +86,26 @@ pub mod helpers {
     pub fn ret(v: Box<Expr>) -> Box<Expr> {
         Box::new(Expr::Return(v))
     }
+
+    pub fn add(l: Box<Expr>, r: Box<Expr>) -> Box<Expr> {
+        fun_call("+", vec![l, r])
+    }
+
+    pub fn sub(l: Box<Expr>, r: Box<Expr>) -> Box<Expr> {
+        fun_call("-", vec![l, r])
+    }
+
+    pub fn mul(l: Box<Expr>, r: Box<Expr>) -> Box<Expr> {
+        fun_call("*", vec![l, r])
+    }
+
+    pub fn div(l: Box<Expr>, r: Box<Expr>) -> Box<Expr> {
+        fun_call("/", vec![l, r])
+    }
+
+    pub fn pow(l: Box<Expr>, r: Box<Expr>) -> Box<Expr> {
+        fun_call("^", vec![l, r])
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

@@ -99,7 +99,12 @@ impl State {
         if let Some(paren) = self.try_parens(c, paren_counter)? {
             info!("Found paren: {:?}", paren);
             match *self {
-                State::Whitespace | State::String => {},
+                State::String => {}
+                State::Whitespace => {
+                    stack.push(paren);
+                    *self = State::Start;
+                    return Ok(());
+                }
                 _ => {
                     if let Some(res) = self.fold(cs)? {
                         match *paren {
@@ -111,10 +116,10 @@ impl State {
                                 stack.push(res);
                                 stack.push(paren);
                             }
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         }
                     }
-                    return Ok(())
+                    return Ok(());
                 }
             }
         }
@@ -378,15 +383,17 @@ mod tests {
 
     #[test]
     fn binary_exprs() {
-        env_logger::try_init().unwrap();
-        assert_parse!("1 + 2" => fun_call("+", vec![int(1), int(2)]));
-        assert_parse!("1 + a" => fun_call("+", vec![int(1), identifier("a")]));
-        assert_parse!("a + 2" => fun_call("+", vec![identifier("a"), int(2)]));
-        assert_parse!("a + b" => fun_call("+", vec![identifier("a"), identifier("b")]));
-        assert_parse!("1 - 2" => fun_call("-", vec![int(1), int(2)]));
-        assert_parse!("(1 - 2)" => fun_call("-", vec![int(1), int(2)]));
-        assert_parse!("1 + 3 * 4" => fun_call("+", vec![int(1), fun_call("*", vec![int(3), int(4)])]));
-        assert_parse!("1 * 3 + 4" => fun_call("+", vec![fun_call("*", vec![int(1), int(3)]), int(4)]));
-        assert_parse!("1 - - b" => fun_call("-", vec![int(1), fun_call("-", vec![identifier("b")])]));
+        assert_parse!("1 + 2" => add(int(1), int(2)));
+        assert_parse!("1 + a" => add(int(1), identifier("a")));
+        assert_parse!("a + 2" => add(identifier("a"), int(2)));
+        assert_parse!("a + b" => add(identifier("a"), identifier("b")));
+        assert_parse!("1 - 2" => sub(int(1), int(2)));
+        assert_parse!("(1 - 2)" => sub(int(1), int(2)));
+        assert_parse!("1 + 3 * 4" => add(int(1), mul(int(3), int(4))));
+        assert_parse!("1 * 3 + 4" => add(mul(int(1), int(3)), int(4)));
+        assert_parse!("1 - - b" => sub(int(1), fun_call("-", vec![identifier("b")])));
+        assert_parse!("3 * (8 - 5)" => mul(int(3), sub(int(8), int(5))));
+        assert_parse!("3 - (8 * 5)" => sub(int(3), mul(int(8), int(5))));
+        assert_parse!("3 - 8 * 5" => sub(int(3), mul(int(8), int(5))));
     }
 }
