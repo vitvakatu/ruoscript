@@ -97,7 +97,6 @@ impl State {
     ) -> Result<(), Error> {
         info!("Reading char: {}", c);
         if let Some(paren) = self.try_parens(c, paren_counter)? {
-            info!("Found paren: {:?}", paren);
             match *self {
                 State::String => {}
                 State::Whitespace => {
@@ -129,39 +128,32 @@ impl State {
             State::Whitespace => {
                 if !c.is_whitespace() {
                     if c.is_numeric() {
-                        info!("Found numberic, changing state");
                         *self = State::Number;
                         cs.clear();
                         cs.push(c);
                     } else if c == '"' {
-                        info!("Found quote, changing state");
                         *self = State::String;
                         cs.clear();
                         cs.push(c);
                     } else {
-                        info!("Found non-whitespace, changing state");
                         *self = State::Ident;
                         cs.clear();
                         cs.push(c);
                     }
                 }
-                info!("Whitespace, skipping");
                 Ok(())
             }
             State::Number => {
                 let res = self.try_whitespace(c, cs)?;
                 if let Some(res) = res {
-                    info!("Found whitespace, changing state");
                     stack.push(res);
                     Ok(())
                 } else {
                     if c.is_numeric() {
-                        info!("Found digit, continuing");
                         cs.push(c);
                     } else if c == '_' {
                         // do nothing
                     } else if c == '.' {
-                        info!("Found point, changing state to float");
                         cs.push(c);
                         *self = State::Float(FloatPart::Fraction);
                     } else {
@@ -173,15 +165,12 @@ impl State {
             State::Float(FloatPart::Fraction) => {
                 let res = self.try_whitespace(c, cs)?;
                 if let Some(res) = res {
-                    info!("Found whitespace, changing state");
                     stack.push(res);
                     Ok(())
                 } else {
                     if c.is_numeric() {
-                        info!("Found digit, continuing");
                         cs.push(c);
                     } else if c == 'e' || c == 'E' {
-                        info!("Found exponent part, changing state");
                         cs.push(c);
                         *self = State::Float(FloatPart::Exponent);
                     } else {
@@ -193,12 +182,10 @@ impl State {
             State::Float(FloatPart::Exponent) => {
                 let res = self.try_whitespace(c, cs)?;
                 if let Some(res) = res {
-                    info!("Found whitespace, changing state");
                     stack.push(res);
                     Ok(())
                 } else {
                     if c.is_numeric() || c == '-' || c == '+' {
-                        info!("Found digit, continuing");
                         cs.push(c);
                     } else {
                         return Err("Expected number or -".into());
@@ -209,43 +196,35 @@ impl State {
             State::Ident => {
                 let res = self.try_whitespace(c, cs)?;
                 if let Some(res) = res {
-                    info!("Found whitespace, changing state");
                     stack.push(res);
                     Ok(())
                 } else {
-                    info!("Continuing with identifier");
                     cs.push(c);
                     Ok(())
                 }
             }
             State::String => {
                 if c == '"' {
-                    info!("Found second quote, folding...");
                     stack.push(self.fold(cs)?.unwrap());
                 } else {
-                    info!("Continuing with string");
                     cs.push(c);
                 }
                 Ok(())
             }
             State::Start => {
                 if c.is_whitespace() {
-                    info!("Found whitespace, changing state");
                     *self = State::Whitespace;
                 } else if c.is_numeric() || (c == '-' && nc.map_or(false, |c| c.is_numeric())) {
-                    info!("Found number, changing state");
                     *self = State::Number;
                     cs.clear();
                     cs.push(c);
                 } else if c == '"' {
-                    info!("Found quote, changing state");
                     *self = State::String;
                     cs.clear();
                     cs.push(c);
                 } else if c == '.' {
                     return Err("Found illegal identifier".into());
                 } else {
-                    info!("Found identifier, changing state");
                     *self = State::Ident;
                     cs.clear();
                     cs.push(c);
