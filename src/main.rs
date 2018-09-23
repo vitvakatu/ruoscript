@@ -1,6 +1,9 @@
 extern crate pest;
 #[macro_use]
 extern crate pest_derive;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
 mod ast;
 //mod prec_climber;

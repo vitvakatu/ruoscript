@@ -7,6 +7,8 @@ pub enum Expr {
     Bool(bool),
     String(String),
     Empty,
+    LParen,
+    RParen,
     Ident(Ident),
     DeclareVar(Ident, Box<Expr>),
     Assign(Ident, Box<Expr>),
@@ -39,6 +41,14 @@ pub mod helpers {
 
     pub fn empty() -> Box<Expr> {
         Box::new(Expr::Empty)
+    }
+
+    pub fn lparen() -> Box<Expr> {
+        Box::new(Expr::LParen)
+    }
+
+    pub fn rparen() -> Box<Expr> {
+        Box::new(Expr::RParen)
     }
 
     pub fn identifier<S: Into<String>>(v: S) -> Box<Expr> {

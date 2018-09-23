@@ -30,16 +30,17 @@ pub enum State {
 }
 
 impl State {
-    pub fn fold(&mut self, cs: &mut Vec<char>) -> Result<Box<Expr>, Error> {
+    pub fn fold(&mut self, cs: &mut Vec<char>) -> Result<Option<Box<Expr>>, Error> {
+        info!("Folding: {:?}", cs.iter().collect::<String>());
         let res = match *self {
-            State::Start => unreachable!("Start"),
+            State::Start => Ok(None),
             State::Number => {
                 let mut string: String = cs.iter().collect();
                 let number: i64 = match string.parse() {
                     Ok(n) => n,
                     Err(e) => return Err(format!("Unable to parse integer: {}", e)),
                 };
-                Ok(int(number))
+                Ok(Some(int(number)))
             }
             State::Float(_) => {
                 let string: String = cs.iter().collect();
@@ -47,16 +48,17 @@ impl State {
                     Ok(n) => n,
                     Err(e) => return Err(format!("Unable to parse float: {}", e)),
                 };
-                Ok(float(number))
+                Ok(Some(float(number)))
             }
-            State::Ident => Ok(identifier(cs.iter().collect::<String>())),
-            State::String => Ok(string(cs.iter().skip(1).collect::<String>())),
-            State::Whitespace => unreachable!("Whitespace"),
-            State::End => unreachable!("End"),
+            State::Ident => Ok(Some(identifier(cs.iter().collect::<String>()))),
+            State::String => Ok(Some(string(cs.iter().skip(1).collect::<String>()))),
+            State::Whitespace => Ok(None),
+            State::End => Ok(None),
         };
         if res.is_ok() {
             cs.clear();
         }
+        info!("Folding result: {:?}", res);
         res
     }
 
@@ -64,7 +66,22 @@ impl State {
         if c.is_whitespace() {
             let res = self.fold(cs);
             *self = State::Whitespace;
-            res.map(Some)
+            res
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn try_parens(&mut self, c: char, paren_counter: &mut u8) -> Result<Option<Box<Expr>>, Error> {
+        if c == '(' {
+            *paren_counter += 1;
+            Ok(Some(lparen()))
+        } else if c == ')' {
+            if *paren_counter < 1 {
+                return Err("Unmatched parenthesis found: closing parens count is greater".into());
+            }
+            *paren_counter -= 1;
+            Ok(Some(rparen()))
         } else {
             Ok(None)
         }
@@ -72,105 +89,163 @@ impl State {
 
     pub fn read_char(
         &mut self,
+        stack: &mut Vec<Box<Expr>>,
         c: char,
         nc: Option<char>,
         cs: &mut Vec<char>,
-    ) -> Result<Option<Box<Expr>>, Error> {
+        paren_counter: &mut u8,
+    ) -> Result<(), Error> {
+        info!("Reading char: {}", c);
+        if let Some(paren) = self.try_parens(c, paren_counter)? {
+            info!("Found paren: {:?}", paren);
+            match *self {
+                State::Whitespace | State::String => {},
+                _ => {
+                    if let Some(res) = self.fold(cs)? {
+                        match *paren {
+                            Expr::LParen => {
+                                stack.push(paren);
+                                stack.push(res);
+                            }
+                            Expr::RParen => {
+                                stack.push(res);
+                                stack.push(paren);
+                            }
+                            _ => unreachable!()
+                        }
+                    }
+                    return Ok(())
+                }
+            }
+        }
+        info!("Current state: {:?}", self);
         match *self {
             State::End => unreachable!(),
             State::Whitespace => {
                 if !c.is_whitespace() {
                     if c.is_numeric() {
+                        info!("Found numberic, changing state");
                         *self = State::Number;
                         cs.clear();
                         cs.push(c);
                     } else if c == '"' {
+                        info!("Found quote, changing state");
                         *self = State::String;
                         cs.clear();
                         cs.push(c);
                     } else {
+                        info!("Found non-whitespace, changing state");
                         *self = State::Ident;
                         cs.clear();
                         cs.push(c);
                     }
                 }
-                Ok(None)
+                info!("Whitespace, skipping");
+                Ok(())
             }
             State::Number => {
                 let res = self.try_whitespace(c, cs)?;
-                if res.is_none() {
+                if let Some(res) = res {
+                    info!("Found whitespace, changing state");
+                    stack.push(res);
+                    Ok(())
+                } else {
                     if c.is_numeric() {
+                        info!("Found digit, continuing");
                         cs.push(c);
                     } else if c == '_' {
                         // do nothing
                     } else if c == '.' {
+                        info!("Found point, changing state to float");
                         cs.push(c);
                         *self = State::Float(FloatPart::Fraction);
                     } else {
                         return Err("Expected number or .".into());
                     }
+                    Ok(())
                 }
-                Ok(res)
             }
             State::Float(FloatPart::Fraction) => {
                 let res = self.try_whitespace(c, cs)?;
-                if res.is_none() {
+                if let Some(res) = res {
+                    info!("Found whitespace, changing state");
+                    stack.push(res);
+                    Ok(())
+                } else {
                     if c.is_numeric() {
+                        info!("Found digit, continuing");
                         cs.push(c);
                     } else if c == 'e' || c == 'E' {
+                        info!("Found exponent part, changing state");
                         cs.push(c);
                         *self = State::Float(FloatPart::Exponent);
                     } else {
                         return Err("Expected number or e or E".into());
                     }
+                    Ok(())
                 }
-                Ok(res)
             }
             State::Float(FloatPart::Exponent) => {
                 let res = self.try_whitespace(c, cs)?;
-                if res.is_none() {
+                if let Some(res) = res {
+                    info!("Found whitespace, changing state");
+                    stack.push(res);
+                    Ok(())
+                } else {
                     if c.is_numeric() || c == '-' || c == '+' {
+                        info!("Found digit, continuing");
                         cs.push(c);
                     } else {
                         return Err("Expected number or -".into());
                     }
+                    Ok(())
                 }
-                Ok(res)
             }
             State::Ident => {
                 let res = self.try_whitespace(c, cs)?;
-                if res.is_none() {
+                if let Some(res) = res {
+                    info!("Found whitespace, changing state");
+                    stack.push(res);
+                    Ok(())
+                } else {
+                    info!("Continuing with identifier");
                     cs.push(c);
+                    Ok(())
                 }
-                Ok(res)
             }
             State::String => {
                 if c == '"' {
-                    self.fold(cs).map(Some)
+                    info!("Found second quote, folding...");
+                    stack.push(self.fold(cs)?.unwrap());
                 } else {
+                    info!("Continuing with string");
                     cs.push(c);
-                    Ok(None)
                 }
+                Ok(())
             }
             State::Start => {
                 if c.is_whitespace() {
+                    info!("Found whitespace, changing state");
                     *self = State::Whitespace;
                 } else if c.is_numeric() || (c == '-' && nc.map_or(false, |c| c.is_numeric())) {
+                    info!("Found number, changing state");
                     *self = State::Number;
                     cs.clear();
                     cs.push(c);
                 } else if c == '"' {
+                    info!("Found quote, changing state");
                     *self = State::String;
                     cs.clear();
                     cs.push(c);
                 } else if c == '.' {
                     return Err("Found illegal identifier".into());
                 } else {
+                    info!("Found identifier, changing state");
                     *self = State::Ident;
                     cs.clear();
                     cs.push(c);
                 }
-                Ok(None)
+                Ok(())
             }
         }
     }
@@ -183,19 +258,19 @@ impl Parser {
         let mut stack: Vec<Box<Expr>> = Vec::new();
         let mut state = State::Start;
         let mut cs = Vec::new();
+        let mut paren_count = 0;
+
+        info!("Parsing input: {}", input);
 
         let mut chars = input.char_indices().peekable();
         while let Some((i, c)) = chars.next() {
             let nc = chars.peek().map(|(i, c)| *c);
-            let expr_opt = state.read_char(c, nc, &mut cs)?;
-            if expr_opt.is_some() {
-                stack.push(expr_opt.unwrap());
-            }
+            state.read_char(&mut stack, c, nc, &mut cs, &mut paren_count)?;
         }
 
         if !cs.is_empty() {
             let expr = state.fold(&mut cs)?;
-            stack.push(expr);
+            stack.push(expr.unwrap());
         }
 
         if !stack.is_empty() {
@@ -222,6 +297,7 @@ pub fn parse_string(string: &str) -> Result<Box<Expr>, Error> {
 
 #[cfg(test)]
 mod tests {
+    extern crate env_logger;
     use super::*;
     //use ast::{helpers::*, UnOp, BinOp};
 
@@ -302,11 +378,13 @@ mod tests {
 
     #[test]
     fn binary_exprs() {
+        env_logger::try_init().unwrap();
         assert_parse!("1 + 2" => fun_call("+", vec![int(1), int(2)]));
         assert_parse!("1 + a" => fun_call("+", vec![int(1), identifier("a")]));
         assert_parse!("a + 2" => fun_call("+", vec![identifier("a"), int(2)]));
         assert_parse!("a + b" => fun_call("+", vec![identifier("a"), identifier("b")]));
         assert_parse!("1 - 2" => fun_call("-", vec![int(1), int(2)]));
+        assert_parse!("(1 - 2)" => fun_call("-", vec![int(1), int(2)]));
         assert_parse!("1 + 3 * 4" => fun_call("+", vec![int(1), fun_call("*", vec![int(3), int(4)])]));
         assert_parse!("1 * 3 + 4" => fun_call("+", vec![fun_call("*", vec![int(1), int(3)]), int(4)]));
         assert_parse!("1 - - b" => fun_call("-", vec![int(1), fun_call("-", vec![identifier("b")])]));

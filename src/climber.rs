@@ -62,6 +62,11 @@ impl Expr {
                     identifier(ident.clone())
                 }
             }
+            Expr::LParen => {
+                let expr = parser.expression(0);
+                parser.skip_rparen();
+                expr
+            }
             ref expr => Box::new(expr.clone()),
         }
     }
@@ -97,6 +102,18 @@ impl<'a> Climber<'a> {
                 false
             }
         })
+    }
+
+    pub fn skip_rparen(&mut self) {
+        if let Some(expr) = self.tokens.peek().cloned() {
+            if let Expr::RParen = **expr {
+                self.tokens.next().unwrap();
+            } else {
+                panic!("Trying to skip RParen, but it's not found");
+            }
+        } else {
+            panic!("Trying to skip RParen, but there is no token next");
+        }
     }
 
     pub fn parse_nud(&mut self) -> Box<Expr> {

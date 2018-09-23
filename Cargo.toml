@@ -6,4 +6,9 @@ authors = ["Ilya Bogdanov <ilya.bogdanov@xdev.re>"]
 [dependencies]
 pest = "1.0.6"
 pest_derive = "1.0.8"
+log = "0.4.5"
+env_logger = "0.5.13"
+
+[dev-dependencies]
+env_logger = "0.5.13"
 
