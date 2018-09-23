@@ -20,6 +20,51 @@ pub enum Expr {
     If(Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
+pub trait Emit {
+    fn emit(&self) -> String;
+}
+
+fn is_binop(func: &str) -> bool {
+    match func {
+        "+" => true,
+        "-" => true,
+        "*" => true,
+        "/" => true,
+        "^" => true,
+        _ => false,
+    }
+}
+
+impl Emit for Expr {
+    fn emit(&self) -> String {
+        let mut result = String::new();
+        match *self {
+            Expr::Int(i) => result.push_str(&i.to_string()),
+            Expr::Return(ref expr) => {
+                result.push_str("return ");
+                result.push_str(&expr.emit());
+                result.push_str(";\n");
+            },
+            Expr::Block(ref exprs) => {
+                for e in exprs {
+                    result.push_str(&e.emit());
+                }
+            }
+            Expr::FunCall(ref ident, ref args) => {
+                if is_binop(&ident) {
+                    assert_eq!(args.len(), 2);
+                    let (l, r) = (&args[0], &args[1]);
+                    result.push_str(&l.emit());
+                    result.push_str(&ident);
+                    result.push_str(&r.emit());
+                }
+            }
+            _ => unimplemented!(),
+        }
+        result
+    }
+}
+
 pub mod helpers {
     use super::*;
 

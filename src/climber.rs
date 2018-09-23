@@ -29,6 +29,7 @@ fn is_unary(func: &str) -> bool {
     match func {
         "-" => true,
         "!" => true,
+        "return" => true,
         _ => false,
     }
 }
@@ -61,7 +62,11 @@ impl Expr {
         match *self {
             Expr::Ident(ref ident) => {
                 if is_unary(&ident) {
-                    fun_call(ident.clone(), vec![parser.expression(get_lbp(&ident))])
+                    if ident == "return" {
+                        ret(parser.expression(get_lbp(&ident)))
+                    } else {
+                        fun_call(ident.clone(), vec![parser.expression(get_lbp(&ident))])
+                    }
                 } else {
                     identifier(ident.clone())
                 }

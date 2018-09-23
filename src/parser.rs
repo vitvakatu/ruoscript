@@ -114,7 +114,7 @@ impl State {
                     }
                     stack.push(paren);
                     *self = State::Start;
-                    return Ok(())
+                    return Ok(());
                 }
             }
         }
