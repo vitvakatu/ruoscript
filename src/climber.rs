@@ -21,6 +21,8 @@ fn get_lbp(func: &str) -> u32 {
         ">" => 30,
         "&&" => 10,
         "||" => 5,
+        ":=" => 1,
+        "return" => 1,
         _ => 0,
     }
 }
@@ -36,6 +38,7 @@ fn is_unary(func: &str) -> bool {
 
 fn is_binary(func: &str) -> bool {
     match func {
+        ":=" => true,
         "^" => true,
         "/" => true,
         "*" => true,
@@ -89,7 +92,11 @@ impl Expr {
                     get_lbp(&ident)
                 };
                 let rhs = parser.expression(lbp);
-                fun_call(ident.clone(), vec![lhs, rhs])
+                if ident == ":=" {
+                    var_decl(lhs, rhs)
+                } else {
+                    fun_call(ident.clone(), vec![lhs, rhs])
+                }
             }
             _ => unreachable!("Led"),
         }
@@ -110,6 +117,7 @@ impl<'a> Climber<'a> {
     pub fn next_binds_tighter_than(&mut self, rbp: u32) -> bool {
         self.tokens.peek().map_or(false, |t| {
             let lbp = if let Expr::Ident(ref ident) = ***t {
+                println!("{}", ident);
                 get_lbp(&ident)
             } else {
                 0

@@ -74,7 +74,11 @@ impl State {
     fn try_whitespace(&mut self, c: char, cs: &mut Vec<char>) -> Result<Option<Box<Expr>>, Error> {
         if c.is_whitespace() {
             let res = self.fold(cs);
-            *self = State::Whitespace;
+            if c == '\n' {
+                *self = State::Start;
+            } else {
+                *self = State::Whitespace;
+            }
             res
         } else {
             Ok(None)
@@ -297,6 +301,8 @@ impl Parser {
             let expr = state.fold(&mut cs)?;
             stack.push(expr.unwrap());
         }
+
+        println!("Pre-ast: {:?}", stack);
 
         if !stack.is_empty() {
             let mut climber = Climber::new(stack.iter());

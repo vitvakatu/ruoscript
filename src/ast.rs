@@ -10,7 +10,7 @@ pub enum Expr {
     LParen,
     RParen,
     Ident(Ident),
-    DeclareVar(Ident, Box<Expr>),
+    DeclareVar(Box<Expr>, Box<Expr>),
     Assign(Ident, Box<Expr>),
     FunCall(Ident, Vec<Box<Expr>>),
     Return(Box<Expr>),
@@ -44,6 +44,16 @@ impl Emit for Expr {
                 result.push_str("return ");
                 result.push_str(&expr.emit());
                 result.push_str(";\n");
+            }
+            Expr::DeclareVar(ref lvalue, ref expr) => {
+                result.push_str("int ");
+                result.push_str(&lvalue.emit());
+                result.push_str(" = ");
+                result.push_str(&expr.emit());
+                result.push_str(";\n");
+            }
+            Expr::Ident(ref ident) => {
+                result.push_str(&ident);
             }
             Expr::Block(ref exprs) => {
                 for e in exprs {
@@ -100,8 +110,8 @@ pub mod helpers {
         Box::new(Expr::Ident(v.into()))
     }
 
-    pub fn var_decl<S: Into<String>>(ident: S, expr: Box<Expr>) -> Box<Expr> {
-        Box::new(Expr::DeclareVar(ident.into(), expr))
+    pub fn var_decl(lvalue: Box<Expr>, expr: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::DeclareVar(lvalue, expr))
     }
 
     pub fn var_assign<S: Into<String>>(ident: S, expr: Box<Expr>) -> Box<Expr> {

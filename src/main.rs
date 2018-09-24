@@ -25,6 +25,7 @@ fn make_executable(code: &str) -> String {
     src.push_str("#include <stdio.h>\n");
     src.push_str("int main() {\n");
     src.push_str(code);
+    src.push_str("return 0;\n");
     src.push_str("}");
     src
 }
@@ -32,7 +33,7 @@ fn make_executable(code: &str) -> String {
 fn main() -> io::Result<()> {
     let mut src = tempfile::Builder::new().suffix(".c").tempfile()?;
 
-    let code = "return 10*3";
+    let code = "a := 34*3-2\nreturn a";
 
     let ast = parse_string(code).unwrap();
 
