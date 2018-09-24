@@ -1,6 +1,3 @@
-extern crate pest;
-#[macro_use]
-extern crate pest_derive;
 #[macro_use]
 extern crate log;
 extern crate env_logger;
@@ -12,8 +9,6 @@ mod parser;
 mod stack;
 mod types;
 mod value;
-
-use pest::{iterators::Pair, Parser as PestParser};
 
 use std::env;
 use std::fs::File;
@@ -50,9 +45,13 @@ fn main() -> io::Result<()> {
     let bytes_written = src.write(src_code.as_bytes())?;
     println!("Written {} bytes", bytes_written);
 
-    let mut command = Command::new("gcc").arg("-o").arg(::std::path::Path::new("executable")).arg(src.path()).spawn()?;
+    let mut command = Command::new("gcc")
+        .arg("-o")
+        .arg(::std::path::Path::new("executable"))
+        .arg(src.path())
+        .spawn()?;
 
-    command.wait();
+    command.wait()?;
 
     Ok(())
 }

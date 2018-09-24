@@ -44,7 +44,7 @@ impl Emit for Expr {
                 result.push_str("return ");
                 result.push_str(&expr.emit());
                 result.push_str(";\n");
-            },
+            }
             Expr::Block(ref exprs) => {
                 for e in exprs {
                     result.push_str(&e.emit());
