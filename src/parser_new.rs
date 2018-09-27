@@ -1,9 +1,15 @@
-use std::str::CharIndices;
+use failure::Error;
+use failure::ResultExt;
+use std::fmt::{self, Display};
 use std::iter::Peekable;
+use std::str::CharIndices;
 
 #[derive(Fail, Debug)]
 pub enum LexerError {
-
+    #[fail(display = "Could not parse integer: {:?}", _0)]
+    CouldNotParseInteger(Span<String>),
+    #[fail(display = "Could not parse float: {:?}", _0)]
+    CouldNotParseFloat(Span<String>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -15,9 +21,13 @@ struct Span<T> {
 
 impl<T> Span<T> {
     pub fn new(start: usize, end: usize, inner: T) -> Self {
+        Self { start, end, inner }
+    }
+
+    pub fn new_atomic(index: usize, inner: T) -> Self {
         Self {
-            start,
-            end,
+            start: index,
+            end: index,
             inner,
         }
     }
@@ -51,9 +61,9 @@ impl<'a> Lexer<'a> {
         while let Some((_, c)) = self.input.peek().cloned() {
             if c.is_whitespace() {
                 self.input.next();
-                continue
+                continue;
             } else {
-                break
+                break;
             }
         }
     }
@@ -73,86 +83,130 @@ impl<'a> Lexer<'a> {
         self.input.peek().is_none()
     }
 
-    pub fn get_tokens(&mut self) -> Vec<Span<Token>> {
+    pub fn get_tokens(&mut self) -> Result<Vec<Span<Token>>, Error> {
         let mut tokens = Vec::new();
         loop {
-            match self.get_token() {
-                Some(token) => {
-                    tokens.push(token.clone());
-                    if token == Token::Eof {
+            match self.get_token().context("Trying to read next token")? {
+                Some(span) => {
+                    tokens.push(span.clone());
+                    if span.inner == Token::Eof {
                         break;
                     }
                 }
-                None => continue
+                None => continue,
             }
         }
-        tokens
+        Ok(tokens)
     }
 
-    pub fn get_token(&mut self) -> Result<Option<Span<Token>>, LexerError> {
+    fn span(&self, start: usize, inner: Token) -> Span<Token> {
+        Span::new(start, self.last_char.0, inner)
+    }
+
+    fn span_atomic(&self, inner: Token) -> Span<Token> {
+        Span::new_atomic(self.last_char.0, inner)
+    }
+
+    pub fn get_token(&mut self) -> Result<Option<Span<Token>>, Error> {
         self.skip_whitespaces();
         if self.at_eof() {
-            return Ok(Some(Span::new(self.last_char.0, self.last_char.0, Token::Eof)));
+            return Ok(Some(self.span_atomic(Token::Eof)));
         }
         self.next_char();
 
         // identifier: [a-zA-z_][a-zA-Z0-9_]*
-        if self.last_char.is_alphabetic() || self.last_char == '_' {
-            let mut identifier_str = String::new();
-            let start_index = self.last_char.0;
-            identifier_str.push(self.last_char.1);
-            while self.next_char() {
-                if self.last_char.is_alphanumeric() || self.last_char == '_' {
-                    identifier_str.push(self.last_char.1);
-                } else {
-                    break;
-                }
-            }
-            if identifier_str == "def" {
-                return Ok(Some(Span::new(start_index, self.last_char.0, Token::Def)));
-            } else if identifier_str == "extern" {
-                return Ok(Some(Span::new(start_index, self.last_char.0, Token::Extern)));
-            } else {
-                return Ok(Some(Span::new(start_index, self.last_char.0, Token::Identifier(identifier_str))));
-            }
+        if self.last_char.1.is_alphabetic() || self.last_char.1 == '_' {
+            return self.tokenize_identifier().map(Some);
         }
 
         // Integer: [0-9]+
-        if self.last_char.is_digit(10) {
-            let mut number_str = String::new();
-            let start_index = self.last_char.0;
-            number_str.push(self.last_char.1);
-            while self.next_char() {
-                if self.last_char.is_digit(10) {
-                    number_str.push(self.last_char.1);
-                } else {
-
-                }
-            }
-            let number = number_str.parse().expect("Could not parse number");
-            return Some(Span::new(start_index, self.last_char.0, Token::Number(number));
+        if self.last_char.1.is_digit(10) {
+            return self.tokenize_integer().map(Some);
         }
 
         // Comment until end of line
-        if self.last_char == '#' {
-            while self.next_char() {
-                if self.last_char != '\n' && self.last_char != '\r' {
-                    continue
-                }
-                if self.at_eof() {
-                    return Some(Span::new(self.last_char.0, self.last_char.0, Token::Eof));
-                } else {
-                    return None;
-                }
-            }
+        if self.last_char.1 == '#' {
+            return Ok(self.skip_comment());
         }
 
+        Ok(None)
+    }
+
+    fn skip_comment(&mut self) -> Option<Span<Token>> {
+        while self.next_char() {
+            if self.last_char.1 != '\n' && self.last_char.1 != '\r' {
+                continue;
+            }
+            if self.at_eof() {
+                return Some(self.span_atomic(Token::Eof));
+            } else {
+                return None;
+            }
+        }
         None
+    }
+
+    fn tokenize_integer(&mut self) -> Result<Span<Token>, Error> {
+        let mut number_str = String::new();
+        let start_index = self.last_char.0;
+        number_str.push(self.last_char.1);
+        while self.next_char() {
+            if self.last_char.1.is_digit(10) {
+                number_str.push(self.last_char.1);
+            } else {
+                break;
+            }
+        }
+        let number = number_str.parse().map_err(|_| {
+            LexerError::CouldNotParseInteger(Span::new(
+                start_index,
+                self.last_char.0,
+                number_str.clone(),
+            ))
+        })?;
+        return Ok(self.span(start_index, Token::Integer(number)));
+    }
+
+    fn tokenize_identifier(&mut self) -> Result<Span<Token>, Error> {
+        let mut identifier_str = String::new();
+        let start_index = self.last_char.0;
+        identifier_str.push(self.last_char.1);
+        while self.next_char() {
+            if self.last_char.1.is_alphanumeric() || self.last_char.1 == '_' {
+                identifier_str.push(self.last_char.1);
+            } else {
+                break;
+            }
+        }
+        if identifier_str == "def" {
+            return Ok(Span::new(start_index, self.last_char.0, Token::Def));
+        } else if identifier_str == "extern" {
+            return Ok(Span::new(start_index, self.last_char.0, Token::Extern));
+        } else {
+            return Ok(self.span(start_index, Token::Identifier(identifier_str)));
+        }
+    }
+}
+
+pub mod helpers {
+    use super::Token;
+
+    pub fn ident(i: &str) -> Token {
+        Token::Identifier(i.to_string())
+    }
+
+    pub fn op(i: &str) -> Token {
+        Token::Operator(i.to_string())
+    }
+
+    pub fn int(n: i32) -> Token {
+        Token::Integer(n)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::helpers::*;
     use super::*;
 
     fn init_state(input: &str) -> Lexer {
@@ -165,7 +219,7 @@ mod tests {
                 let mut state = init_state($input);
                 let mut tokens = vec![$($tokens),*];
                 tokens.push(Token::Eof);
-                assert_eq!(state.get_tokens(), tokens);
+                assert_eq!(state.get_tokens().unwrap(), tokens);
             })*
         }
     }

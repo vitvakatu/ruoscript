@@ -8,10 +8,10 @@ extern crate failure_derive;
 mod ast;
 mod climber;
 //mod parser;
+mod parser_new;
 mod stack;
 mod types;
 mod value;
-mod parser_new;
 
 use std::env;
 use std::fs::File;
