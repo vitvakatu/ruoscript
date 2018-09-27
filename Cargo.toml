@@ -6,7 +6,8 @@ authors = ["Ilya Bogdanov <ilya.bogdanov@xdev.re>"]
 [dependencies]
 log = "0.4.5"
 env_logger = "0.5.13"
-tempfile = "3.0.4"
+failure = "0.1.2"
+failure_derive = "0.1.2"
 
 [dev-dependencies]
 env_logger = "0.5.13"

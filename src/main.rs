@@ -1,14 +1,17 @@
 #[macro_use]
 extern crate log;
 extern crate env_logger;
-extern crate tempfile;
+extern crate failure;
+#[macro_use]
+extern crate failure_derive;
 
 mod ast;
 mod climber;
-mod parser;
+//mod parser;
 mod stack;
 mod types;
 mod value;
+mod parser_new;
 
 use std::env;
 use std::fs::File;
@@ -18,7 +21,7 @@ use std::process::Command;
 use ast::Emit;
 use ast::Expr;
 
-use parser::parse_string;
+//use parser::parse_string;
 
 fn make_executable(code: &str) -> String {
     let mut src = String::new();
@@ -31,7 +34,7 @@ fn make_executable(code: &str) -> String {
 }
 
 fn main() -> io::Result<()> {
-    let mut src = tempfile::Builder::new().suffix(".c").tempfile()?;
+    /*let mut src = tempfile::Builder::new().suffix(".c").tempfile()?;
 
     let code = "a := 34*3-2\nreturn a";
 
@@ -52,7 +55,6 @@ fn main() -> io::Result<()> {
         .arg(src.path())
         .spawn()?;
 
-    command.wait()?;
-
+    command.wait()?;*/
     Ok(())
 }
