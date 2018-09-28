@@ -8,7 +8,7 @@ pub fn op(i: &str) -> Token {
     Token::Operator(i.to_string())
 }
 
-pub fn int(n: i32) -> Token {
+pub fn int(n: u32) -> Token {
     Token::Integer(n)
 }
 

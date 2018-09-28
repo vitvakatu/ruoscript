@@ -1,4 +1,5 @@
-use ast::Expr;
+use super::ast::{helpers::*, Expr};
+use lexer::Token;
 
 use std::iter::Peekable;
 use std::slice::Iter;
@@ -60,65 +61,53 @@ fn is_right_assoc(func: &str) -> bool {
     func == "^"
 }
 
-impl Expr {
+impl Token {
     pub fn nud(&self, parser: &mut Climber) -> Box<Expr> {
         match *self {
-            Expr::Ident(ref ident) => {
-                if is_unary(&ident) {
-                    if ident == "return" {
-                        ret(parser.expression(get_lbp(&ident)))
-                    } else {
-                        fun_call(ident.clone(), vec![parser.expression(get_lbp(&ident))])
-                    }
-                } else {
-                    identifier(ident.clone())
-                }
+            Token::Identifier(ref ident) => {
+                identifier(ident.clone())
             }
-            Expr::LParen => {
+            Token::RoundLeft => {
                 let expr = parser.expression(0);
                 parser.skip_rparen();
                 expr
             }
-            ref expr => Box::new(expr.clone()),
+            Token::Integer(i) => int(i),
+            _ => unimplemented!()
         }
     }
 
     pub fn led(&self, parser: &mut Climber, lhs: Box<Expr>) -> Box<Expr> {
         match *self {
-            Expr::Ident(ref ident) => {
+            Token::Identifier(ref ident) => {
                 let lbp = if is_right_assoc(&ident) {
                     get_lbp(&ident) - 1
                 } else {
                     get_lbp(&ident)
                 };
                 let rhs = parser.expression(lbp);
-                if ident == ":=" {
-                    var_decl(lhs, rhs)
-                } else {
-                    fun_call(ident.clone(), vec![lhs, rhs])
-                }
+                call(ident.clone(), vec![lhs, rhs])
             }
             _ => unreachable!("Led"),
         }
     }
 }
 
-pub struct Climber<'a> {
-    tokens: Peekable<Iter<'a, Box<Expr>>>,
+pub struct Climber<'a, 'b: 'a> {
+    tokens: &'a mut Peekable<Iter<'b, Token>>,
 }
 
-impl<'a> Climber<'a> {
-    pub fn new(tokens: Iter<'a, Box<Expr>>) -> Self {
+impl<'a, 'b: 'a> Climber<'a, 'b> {
+    pub fn new(tokens: &'a mut Peekable<Iter<'b, Token>>) -> Self {
         Self {
-            tokens: tokens.peekable(),
+            tokens,
         }
     }
 
     pub fn next_binds_tighter_than(&mut self, rbp: u32) -> bool {
         self.tokens.peek().map_or(false, |t| {
-            let lbp = if let Expr::Ident(ref ident) = ***t {
-                println!("{}", ident);
-                get_lbp(&ident)
+            let lbp = if let Token::Identifier(identifier) = ***t {
+                get_lbp(&identifier)
             } else {
                 0
             };
@@ -127,8 +116,8 @@ impl<'a> Climber<'a> {
     }
 
     pub fn skip_rparen(&mut self) {
-        if let Some(expr) = self.tokens.peek().cloned() {
-            if let Expr::RParen = **expr {
+        if let Some(token) = self.tokens.peek() {
+            if let Token::RoundRight = token {
                 self.tokens.next().unwrap();
             } else {
                 panic!("Trying to skip RParen, but it's not found");

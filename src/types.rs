@@ -7,7 +7,7 @@ pub type Bool = bool;
 
 #[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum Label {
-    Function(Ident, bool),
+    Function(String, bool),
     Direct(usize),
 }
 

@@ -3,8 +3,8 @@ type Ident = String;
 /// Function prototype
 #[derive(Debug, PartialEq, Clone)]
 pub struct Prototype {
-    name: String,
-    args: Vec<String>
+    pub name: String,
+    pub args: Vec<String>
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -36,6 +36,10 @@ pub mod helpers {
 
     pub fn prototype<S: Into<String>>(ident: S, args: Vec<String>) -> Box<Expr> {
         Box::new(Expr::Prototype(Prototype { name: ident.into(), args }))
+    }
+
+    pub fn function(proto: Prototype, body: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::Function(proto, body))
     }
 
     pub fn add(l: Box<Expr>, r: Box<Expr>) -> Box<Expr> {
