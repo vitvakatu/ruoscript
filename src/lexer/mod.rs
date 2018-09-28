@@ -1,4 +1,5 @@
 mod paren_counter;
+mod helpers;
 
 use self::paren_counter::ParenCounter;
 
@@ -51,6 +52,7 @@ pub enum Token {
     CurlyRight,
     SquareLeft,
     SquareRight,
+    Comma,
     Identifier(String),
     Operator(String),
     Integer(i32),
@@ -170,6 +172,10 @@ impl<'a> Lexer<'a> {
 
         if Self::is_parenthesis(self.last_char.1) {
             return self.tokenize_parenthesis().map(Some);
+        }
+
+        if self.last_char.1 == ',' {
+            return Ok(Some(self.span(self.last_char.0, Token::Comma)));
         }
 
         // Comment until end of line
@@ -321,58 +327,6 @@ impl<'a> Lexer<'a> {
     }
 }
 
-pub mod helpers {
-    use super::Token;
-
-    pub fn ident(i: &str) -> Token {
-        Token::Identifier(i.to_string())
-    }
-
-    pub fn op(i: &str) -> Token {
-        Token::Operator(i.to_string())
-    }
-
-    pub fn int(n: i32) -> Token {
-        Token::Integer(n)
-    }
-
-    pub fn nl() -> Token {
-        Token::NewLine
-    }
-
-    pub fn ext() -> Token {
-        Token::Extern
-    }
-
-    pub fn def() -> Token {
-        Token::Def
-    }
-
-    pub fn round_left() -> Token {
-        Token::RoundLeft
-    }
-
-    pub fn round_right() -> Token {
-        Token::RoundRight
-    }
-
-    pub fn curly_left() -> Token {
-        Token::CurlyLeft
-    }
-
-    pub fn curly_right() -> Token {
-        Token::CurlyRight
-    }
-
-    pub fn square_left() -> Token {
-        Token::SquareLeft
-    }
-
-    pub fn square_right() -> Token {
-        Token::SquareRight
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::helpers::*;
@@ -489,6 +443,15 @@ mod tests {
                 Span::new(7, 11, ident("test")),
                 Span::new(11, 12, round_left()),
                 Span::new(12, 13, round_right())
+            ],
+            "extern test(a, b)" => [
+                Span::new(0, 5, ext()),
+                Span::new(7, 11, ident("test")),
+                Span::new(11, 12, round_left()),
+                Span::new(12, 13, ident("a")),
+                Span::new(13, 14, comma()),
+                Span::new(15, 16, ident("b")),
+                Span::new(16, 17, round_right())
             ]
         }
     }
