@@ -36,6 +36,7 @@ impl<T> Span<T> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     Eof,
+    NewLine,
     Def,
     Extern,
     Identifier(String),
@@ -98,6 +99,11 @@ impl<'a> Lexer<'a> {
         self.input.peek().is_none()
     }
 
+    fn at_newline(&mut self) -> bool {
+        let next = self.input.peek().unwrap();
+        next.1 == '\n' || next.1 == ';'
+    }
+
     pub fn get_tokens(&mut self) -> Result<Vec<Span<Token>>, Error> {
         let mut tokens = Vec::new();
         loop {
@@ -127,6 +133,11 @@ impl<'a> Lexer<'a> {
             debug!("lexer: Eof");
             return Ok(Some(self.span_atomic(Token::Eof)));
         }
+        if self.at_newline() {
+            debug!("lexer: Newline");
+            return Ok(Some(self.span_atomic(Token::NewLine)));
+        }
+
         self.skip_whitespaces();
         self.next_char();
 
@@ -137,7 +148,7 @@ impl<'a> Lexer<'a> {
         }
 
         // Integer: [0-9]+
-        if Self::is_integer_char(self.last_char.1) {
+        if Self::is_first_integer_char(self.last_char.1) {
             debug!("lexer: integer found: {:?}", self.last_char);
             return self.tokenize_integer().map(Some);
         }
@@ -148,7 +159,7 @@ impl<'a> Lexer<'a> {
             return Ok(self.skip_comment());
         }*/
 
-        // operator: [!@#$%^&*-=+?></]+
+        // operator: any non-alphanumeric-ascii symbols, except for [;.,'"{}[]()#]
         if Self::is_operator_char(self.last_char.1) {
             debug!("lexer: operator found: {:?}", self.last_char);
             return self.tokenize_operator().map(Some);
@@ -176,7 +187,7 @@ impl<'a> Lexer<'a> {
         let start_index = self.last_char.0;
         number_str.push(self.last_char.1);
         while self.peek_next_char() {
-            if self.last_char.1.is_digit(10) {
+            if Self::is_integer_char(self.last_char.1) {
                 debug!("lexer: next digit: {:?}", self.last_char);
                 number_str.push(self.last_char.1);
                 self.next_char();
@@ -186,6 +197,7 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
+        let number_str = number_str.replace("_", "");
         let number = number_str.parse().map_err(|_| {
             LexerError::CouldNotParseInteger(Span::new(
                 start_index,
@@ -247,22 +259,24 @@ impl<'a> Lexer<'a> {
     }
 
     fn is_first_identifier_char(ch: char) -> bool {
-        ch.is_alphabetic() || ch == '_'
+        ch.is_ascii_alphabetic() || ch == '_'
     }
 
     fn is_identifier_char(ch: char) -> bool {
-        ch.is_alphanumeric() || ch == '_'
+        ch.is_ascii_alphanumeric() || ch == '_'
     }
 
-    fn is_integer_char(ch: char) -> bool {
+    fn is_first_integer_char(ch: char) -> bool {
         ch.is_digit(10)
     }
 
+    fn is_integer_char(ch: char) -> bool {
+        ch.is_digit(10) || ch == '_'
+    }
+
     fn is_operator_char(ch: char) -> bool {
-        let operator_characters = [
-            '!', '@', '#', '$', '%', '^', '&', '*', '-', '+', '=', ':', '<', '>', '?', '/',
-        ];
-        operator_characters.iter().any(|c| *c == ch)
+        let forbidden_operator_characters = [';', '.', ',', '\'', '"', '[', ']', '{', '}', '#'];
+        !ch.is_ascii_alphanumeric() || forbidden_operator_characters.iter().any(|c| ch == *c)
     }
 }
 
@@ -279,6 +293,10 @@ pub mod helpers {
 
     pub fn int(n: i32) -> Token {
         Token::Integer(n)
+    }
+
+    pub fn nl() -> Token {
+        Token::NewLine
     }
 }
 
@@ -314,10 +332,29 @@ mod tests {
     }
 
     #[test]
-    fn single_char() {
+    fn operators() {
         assert_tokens!{
             "+" => [Span::new(0, 1, op("+"))],
-            "*" => [Span::new(0, 1, op("*"))]
+            "*" => [Span::new(0, 1, op("*"))],
+            "/" => [Span::new(0, 1, op("/"))],
+            "-" => [Span::new(0, 1, op("-"))],
+            "^" => [Span::new(0,1, op("^"))],
+            "//" => [Span::new(0,2, op("//"))],
+            "<=>" => [Span::new(0, 3, op("<=>"))],
+            "<=" => [Span::new(0,2, op("<="))],
+            ">=" => [Span::new(0,2, op(">="))],
+            "!=" => [Span::new(0,2, op("!="))],
+            "==" => [Span::new(0,2, op("=="))],
+            "<" => [Span::new(0,1, op("<"))],
+            ">" => [Span::new(0,1, op(">"))],
+            "!" => [Span::new(0,1, op("!"))],
+            "|" => [Span::new(0,1, op("|"))],
+            "||" => [Span::new(0,2, op("||"))],
+            "&" => [Span::new(0,1, op("&"))],
+            "&&" => [Span::new(0,2, op("&&"))],
+            "->" => [Span::new(0,2, op("->"))],
+            "<-" => [Span::new(0,2, op("<-"))],
+            "<@>" => [Span::new(0,3, op("<@>"))]
         }
     }
 
@@ -325,19 +362,26 @@ mod tests {
     fn identifiers() {
         assert_tokens!{
             "a" => [Span::new(0, 1, ident("a"))],
+            "_" => [Span::new(0, 1, ident("_"))],
+            "_prefixed" => [Span::new(0, 9, ident("_prefixed"))],
             "abc" => [Span::new(0, 3, ident("abc"))],
+            "a1" => [Span::new(0, 2, ident("a1"))],
+            "_123" => [Span::new(0, 4, ident("_123"))],
+            "some_long_ident123" => [Span::new(0, 18, ident("some_long_ident123"))],
             "a b" => [
                 Span::new(0, 1, ident("a")),
                 Span::new(2, 3, ident("b"))
-                ],
-            "a1" => [Span::new(0, 2, ident("a1"))]
+                ]
         }
     }
 
     #[test]
     fn integers() {
         assert_tokens!{
+            "0" => [Span::new(0, 1, int(0))],
             "1" => [Span::new(0, 1, int(1))],
+            "3000000" => [Span::new(0, 7, int(3_000_000))],
+            "3_000_000" => [Span::new(0, 9, int(3_000_000))],
             "1 2" => [Span::new(0, 1, int(1)), Span::new(2, 3, int(2))]
         }
     }
@@ -351,6 +395,13 @@ mod tests {
                 Span::new(2, 3, int(2)),
                 Span::new(3, 4, op("=")),
                 Span::new(4, 5, int(4))
+            ],
+            "2 + 2 = 4" => [
+                Span::new(0, 1, int(2)),
+                Span::new(2, 3, op("+")),
+                Span::new(4, 5, int(2)),
+                Span::new(6, 7, op("=")),
+                Span::new(8, 9, int(4))
             ]
         }
     }
