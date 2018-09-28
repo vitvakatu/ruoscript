@@ -13,7 +13,7 @@ pub enum LexerError {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Span<T> {
+pub struct Span<T> {
     pub start: usize,
     pub end: usize,
     pub inner: T,
@@ -34,7 +34,7 @@ impl<T> Span<T> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Token {
+pub enum Token {
     Eof,
     Def,
     Extern,
@@ -44,22 +44,26 @@ enum Token {
     Float(i32),
 }
 
-struct Lexer<'a> {
+pub struct Lexer<'a> {
     last_char: (usize, char),
+    prev_char: (usize, char),
     input: Peekable<CharIndices<'a>>,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: CharIndices<'a>) -> Lexer<'a> {
+        let mut input = input.peekable();
         Self {
             last_char: (0, ' '),
-            input: input.peekable(),
+            prev_char: (0, ' '),
+            input,
         }
     }
 
     fn skip_whitespaces(&mut self) {
         while let Some((_, c)) = self.input.peek().cloned() {
             if c.is_whitespace() {
+                debug!("lexer: skipped one whitespace character");
                 self.input.next();
                 continue;
             } else {
@@ -68,15 +72,26 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn next_char(&mut self) -> bool {
-        while let Some((i, c)) = self.input.next() {
+    fn peek_next_char(&mut self) -> bool {
+        while let Some((i, c)) = self.input.peek().cloned() {
             if c.is_whitespace() {
                 return false;
             }
+            self.prev_char = self.last_char;
             self.last_char = (i, c);
+            debug!("lexer: next char: {:?}", self.last_char);
             return true;
         }
         return false;
+    }
+
+    fn next_char(&mut self) {
+        self.prev_char = self.last_char;
+        self.last_char = self.input.next().unwrap();
+    }
+
+    fn prev_char(&mut self) {
+        self.last_char = self.prev_char;
     }
 
     fn at_eof(&mut self) -> bool {
@@ -100,7 +115,7 @@ impl<'a> Lexer<'a> {
     }
 
     fn span(&self, start: usize, inner: Token) -> Span<Token> {
-        Span::new(start, self.last_char.0, inner)
+        Span::new(start, self.last_char.0 + 1, inner)
     }
 
     fn span_atomic(&self, inner: Token) -> Span<Token> {
@@ -108,31 +123,41 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn get_token(&mut self) -> Result<Option<Span<Token>>, Error> {
-        self.skip_whitespaces();
         if self.at_eof() {
+            debug!("lexer: Eof");
             return Ok(Some(self.span_atomic(Token::Eof)));
         }
+        self.skip_whitespaces();
         self.next_char();
 
         // identifier: [a-zA-z_][a-zA-Z0-9_]*
-        if self.last_char.1.is_alphabetic() || self.last_char.1 == '_' {
+        if Self::is_first_identifier_char(self.last_char.1) {
+            debug!("lexer: identifier found: {:?}", self.last_char);
             return self.tokenize_identifier().map(Some);
         }
 
         // Integer: [0-9]+
-        if self.last_char.1.is_digit(10) {
+        if Self::is_integer_char(self.last_char.1) {
+            debug!("lexer: integer found: {:?}", self.last_char);
             return self.tokenize_integer().map(Some);
         }
 
         // Comment until end of line
-        if self.last_char.1 == '#' {
+        /*if self.last_char.1 == '#' {
+            debug!("lexer: comment found: {:?}", self.last_char);
             return Ok(self.skip_comment());
+        }*/
+
+        // operator: [!@#$%^&*-=+?></]+
+        if Self::is_operator_char(self.last_char.1) {
+            debug!("lexer: operator found: {:?}", self.last_char);
+            return self.tokenize_operator().map(Some);
         }
 
         Ok(None)
     }
 
-    fn skip_comment(&mut self) -> Option<Span<Token>> {
+    /*fn skip_comment(&mut self) -> Option<Span<Token>> {
         while self.next_char() {
             if self.last_char.1 != '\n' && self.last_char.1 != '\r' {
                 continue;
@@ -144,16 +169,20 @@ impl<'a> Lexer<'a> {
             }
         }
         None
-    }
+    }*/
 
     fn tokenize_integer(&mut self) -> Result<Span<Token>, Error> {
         let mut number_str = String::new();
         let start_index = self.last_char.0;
         number_str.push(self.last_char.1);
-        while self.next_char() {
+        while self.peek_next_char() {
             if self.last_char.1.is_digit(10) {
+                debug!("lexer: next digit: {:?}", self.last_char);
                 number_str.push(self.last_char.1);
+                self.next_char();
             } else {
+                debug!("lexer: found non-digit: {:?}", self.last_char);
+                self.prev_char();
                 break;
             }
         }
@@ -164,6 +193,7 @@ impl<'a> Lexer<'a> {
                 number_str.clone(),
             ))
         })?;
+        debug!("lexer: number parsed: {}", number);
         return Ok(self.span(start_index, Token::Integer(number)));
     }
 
@@ -171,20 +201,68 @@ impl<'a> Lexer<'a> {
         let mut identifier_str = String::new();
         let start_index = self.last_char.0;
         identifier_str.push(self.last_char.1);
-        while self.next_char() {
+        while self.peek_next_char() {
             if self.last_char.1.is_alphanumeric() || self.last_char.1 == '_' {
+                debug!("lexer: next identifier character: {:?}", self.last_char);
                 identifier_str.push(self.last_char.1);
+                self.next_char();
             } else {
+                debug!("lexer: non-identifier character found: {:?}", self.last_char);
+                self.prev_char();
                 break;
             }
         }
         if identifier_str == "def" {
+            debug!("lexer: found def");
             return Ok(Span::new(start_index, self.last_char.0, Token::Def));
         } else if identifier_str == "extern" {
+            debug!("lexer: found extern");
             return Ok(Span::new(start_index, self.last_char.0, Token::Extern));
         } else {
+            debug!("lexer: parsed identifier: {}", identifier_str);
             return Ok(self.span(start_index, Token::Identifier(identifier_str)));
         }
+    }
+
+    fn tokenize_operator(&mut self) -> Result<Span<Token>, Error> {
+        let mut identifier_str = String::new();
+        let start_index = self.last_char.0;
+        identifier_str.push(self.last_char.1);
+        while self.peek_next_char() {
+            if !self.last_char.1.is_alphanumeric()
+                && self.last_char.1 != '_'
+                && !self.last_char.1.is_whitespace()
+            {
+                debug!("lexer: next operator character: {:?}", self.last_char);
+                self.next_char();
+                identifier_str.push(self.last_char.1);
+            } else {
+                debug!("lexer: non-operator character found: {:?}", self.last_char);
+                self.prev_char();
+                break;
+            }
+        }
+        debug!("lexer: parsed operator: {}", identifier_str);
+        Ok(self.span(start_index, Token::Operator(identifier_str)))
+    }
+
+    fn is_first_identifier_char(ch: char) -> bool {
+        ch.is_alphabetic() || ch == '_'
+    }
+
+    fn is_identifier_char(ch: char) -> bool {
+        ch.is_alphanumeric() || ch == '_'
+    }
+
+    fn is_integer_char(ch: char) -> bool {
+        ch.is_digit(10)
+    }
+
+    fn is_operator_char(ch: char) -> bool {
+        let operator_characters = [
+            '!', '@', '#', '$', '%', '^', '&', '*', '-', '+', '=', ':', '<', '>', '?', '/',
+        ];
+        operator_characters.iter().any(|c| *c == ch)
     }
 }
 
@@ -210,6 +288,9 @@ mod tests {
     use super::*;
 
     fn init_state(input: &str) -> Lexer {
+        use env_logger;
+        let _ = env_logger::try_init();
+        debug!("Parsing {}", input);
         Lexer::new(input.char_indices())
     }
 
@@ -218,8 +299,9 @@ mod tests {
             $({
                 let mut state = init_state($input);
                 let mut tokens = vec![$($tokens),*];
-                tokens.push(Token::Eof);
-                assert_eq!(state.get_tokens().unwrap(), tokens);
+                let mut parsed_tokens = state.get_tokens().unwrap();
+                assert_eq!(parsed_tokens.pop().unwrap().inner, Token::Eof);
+                assert_eq!(parsed_tokens, tokens);
             })*
         }
     }
@@ -234,30 +316,29 @@ mod tests {
     #[test]
     fn single_char() {
         assert_tokens!{
-            "+" => [Token::Other('+')],
-            "*" => [Token::Other('*')]
+            "+" => [Span::new(0, 1, op("+"))],
+            "*" => [Span::new(0, 1, op("*"))]
         }
     }
 
     #[test]
     fn identifiers() {
         assert_tokens!{
-            "a" => [Token::Identifier("a".into())],
-            "abc" => [Token::Identifier("abc".into())],
+            "a" => [Span::new(0, 1, ident("a"))],
+            "abc" => [Span::new(0, 3, ident("abc"))],
             "a b" => [
-                Token::Identifier("a".into()),
-                Token::Identifier("b".into())
+                Span::new(0, 1, ident("a")),
+                Span::new(2, 3, ident("b"))
                 ],
-            "a1" => [Token::Identifier("a1".into())]
+            "a1" => [Span::new(0, 2, ident("a1"))]
         }
     }
 
     #[test]
-    fn numbers() {
+    fn integers() {
         assert_tokens!{
-            "1" => [Token::Number(1.0)],
-            "1.0" => [Token::Number(1.0)],
-            "3.14 5.26" => [Token::Number(3.14), Token::Number(5.26)]
+            "1" => [Span::new(0, 1, int(1))],
+            "1 2" => [Span::new(0, 1, int(1)), Span::new(2, 3, int(2))]
         }
     }
 
@@ -265,11 +346,11 @@ mod tests {
     fn expressions() {
         assert_tokens!{
             "2+2=4" => [
-                Token::Number(2.0),
-                Token::Other('+'),
-                Token::Number(2.0),
-                Token::Other('='),
-                Token::Number(4.0)
+                Span::new(0, 1, int(2)),
+                Span::new(1, 2, op("+")),
+                Span::new(2, 3, int(2)),
+                Span::new(3, 4, op("=")),
+                Span::new(4, 5, int(4))
             ]
         }
     }
