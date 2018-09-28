@@ -1,3 +1,7 @@
+mod paren_counter;
+
+use self::paren_counter::ParenCounter;
+
 use failure::Error;
 use failure::ResultExt;
 use std::fmt::{self, Display};
@@ -10,6 +14,8 @@ pub enum LexerError {
     CouldNotParseInteger(Span<String>),
     #[fail(display = "Could not parse float: {:?}", _0)]
     CouldNotParseFloat(Span<String>),
+    #[fail(display = "Unmatched parenthesis found: {:?}", _0)]
+    UnmatchedParenthesis(Span<Token>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -39,6 +45,12 @@ pub enum Token {
     NewLine,
     Def,
     Extern,
+    RoundLeft,
+    RoundRight,
+    CurlyLeft,
+    CurlyRight,
+    SquareLeft,
+    SquareRight,
     Identifier(String),
     Operator(String),
     Integer(i32),
@@ -48,6 +60,7 @@ pub enum Token {
 pub struct Lexer<'a> {
     last_char: (usize, char),
     prev_char: (usize, char),
+    paren_counter: ParenCounter,
     input: Peekable<CharIndices<'a>>,
 }
 
@@ -57,6 +70,7 @@ impl<'a> Lexer<'a> {
         Self {
             last_char: (0, ' '),
             prev_char: (0, ' '),
+            paren_counter: Default::default(),
             input,
         }
     }
@@ -135,6 +149,7 @@ impl<'a> Lexer<'a> {
         }
         if self.at_newline() {
             debug!("lexer: Newline");
+            self.next_char();
             return Ok(Some(self.span_atomic(Token::NewLine)));
         }
 
@@ -151,6 +166,10 @@ impl<'a> Lexer<'a> {
         if Self::is_first_integer_char(self.last_char.1) {
             debug!("lexer: integer found: {:?}", self.last_char);
             return self.tokenize_integer().map(Some);
+        }
+
+        if Self::is_parenthesis(self.last_char.1) {
+            return self.tokenize_parenthesis().map(Some);
         }
 
         // Comment until end of line
@@ -244,11 +263,11 @@ impl<'a> Lexer<'a> {
             if !self.last_char.1.is_alphanumeric()
                 && self.last_char.1 != '_'
                 && !self.last_char.1.is_whitespace()
-            {
-                debug!("lexer: next operator character: {:?}", self.last_char);
-                self.next_char();
-                identifier_str.push(self.last_char.1);
-            } else {
+                {
+                    debug!("lexer: next operator character: {:?}", self.last_char);
+                    self.next_char();
+                    identifier_str.push(self.last_char.1);
+                } else {
                 debug!("lexer: non-operator character found: {:?}", self.last_char);
                 self.prev_char();
                 break;
@@ -256,6 +275,24 @@ impl<'a> Lexer<'a> {
         }
         debug!("lexer: parsed operator: {}", identifier_str);
         Ok(self.span(start_index, Token::Operator(identifier_str)))
+    }
+
+    fn tokenize_parenthesis(&mut self) -> Result<Span<Token>, Error> {
+        let (token, is_unmatched) = match self.last_char.1 {
+            '(' => (Token::RoundLeft, self.paren_counter.round_left()),
+            ')' => (Token::RoundRight, self.paren_counter.round_right()),
+            '{' => (Token::CurlyLeft, self.paren_counter.curly_left()),
+            '}' => (Token::CurlyRight, self.paren_counter.curly_right()),
+            '[' => (Token::SquareLeft, self.paren_counter.square_left()),
+            ']' => (Token::SquareRight, self.paren_counter.square_right()),
+            _ => unreachable!()
+        };
+        if !is_unmatched {
+            Err(LexerError::UnmatchedParenthesis(self.span(self.last_char.0, token)))?
+        } else {
+            debug!("lexer: parsed parenthesis: {:?}", token);
+            Ok(self.span(self.last_char.0, token))
+        }
     }
 
     fn is_first_identifier_char(ch: char) -> bool {
@@ -274,9 +311,13 @@ impl<'a> Lexer<'a> {
         ch.is_digit(10) || ch == '_'
     }
 
+    fn is_parenthesis(ch: char) -> bool {
+        ch == '(' || ch == ')' || ch == '{' || ch == '}' || ch == '[' || ch == ']'
+    }
+
     fn is_operator_char(ch: char) -> bool {
         let forbidden_operator_characters = [';', '.', ',', '\'', '"', '[', ']', '{', '}', '#'];
-        !ch.is_ascii_alphanumeric() || forbidden_operator_characters.iter().any(|c| ch == *c)
+        !ch.is_ascii_alphanumeric() && !forbidden_operator_characters.iter().any(|c| ch == *c)
     }
 }
 
@@ -297,6 +338,38 @@ pub mod helpers {
 
     pub fn nl() -> Token {
         Token::NewLine
+    }
+
+    pub fn ext() -> Token {
+        Token::Extern
+    }
+
+    pub fn def() -> Token {
+        Token::Def
+    }
+
+    pub fn round_left() -> Token {
+        Token::RoundLeft
+    }
+
+    pub fn round_right() -> Token {
+        Token::RoundRight
+    }
+
+    pub fn curly_left() -> Token {
+        Token::CurlyLeft
+    }
+
+    pub fn curly_right() -> Token {
+        Token::CurlyRight
+    }
+
+    pub fn square_left() -> Token {
+        Token::SquareLeft
+    }
+
+    pub fn square_right() -> Token {
+        Token::SquareRight
     }
 }
 
@@ -383,6 +456,40 @@ mod tests {
             "3000000" => [Span::new(0, 7, int(3_000_000))],
             "3_000_000" => [Span::new(0, 9, int(3_000_000))],
             "1 2" => [Span::new(0, 1, int(1)), Span::new(2, 3, int(2))]
+        }
+    }
+
+    #[test]
+    fn multiline() {
+        assert_tokens!{
+            "1\n3\n\n4" => [
+                Span::new(0, 1, int(1)),
+                Span::new(1, 1, nl()),
+                Span::new(2, 3, int(3)),
+                Span::new(3, 3, nl()),
+                Span::new(4, 4, nl()),
+                Span::new(5, 6, int(4))
+            ],
+            "1;3;;4" => [
+                Span::new(0, 1, int(1)),
+                Span::new(1, 1, nl()),
+                Span::new(2, 3, int(3)),
+                Span::new(3, 3, nl()),
+                Span::new(4, 4, nl()),
+                Span::new(5, 6, int(4))
+            ]
+        }
+    }
+
+    #[test]
+    fn externs() {
+        assert_tokens!{
+            "extern test()" => [
+                Span::new(0, 5, ext()),
+                Span::new(7, 11, ident("test")),
+                Span::new(11, 12, round_left()),
+                Span::new(12, 13, round_right())
+            ]
         }
     }
 

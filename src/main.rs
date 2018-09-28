@@ -8,7 +8,7 @@ extern crate failure_derive;
 mod ast;
 mod climber;
 //mod parser;
-mod parser_new;
+mod lexer;
 mod stack;
 mod types;
 mod value;
