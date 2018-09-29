@@ -1,19 +1,21 @@
 pub mod ast;
 
-use self::ast::{Expr, helpers::*};
-use super::lexer::{Token, Lexer};
+use self::ast::{helpers::*, Expr};
+use super::lexer::{Lexer, Token};
+
+use codegen::{Codegen, Context};
 
 use std::iter::Peekable;
 use std::slice::Iter;
 
 pub struct Parser<'a> {
-    tokens: Peekable<Iter<'a, Token>>
+    tokens: Peekable<Iter<'a, Token>>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: Iter<'a, Token>) -> Self {
         Self {
-            tokens: tokens.peekable()
+            tokens: tokens.peekable(),
         }
     }
 
@@ -46,7 +48,7 @@ impl<'a> Parser<'a> {
                 // skip ')'
                 let _ = self.next_token();
             }
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
         debug!("parser: parsed paren expression: {:?}", expr);
         expr
@@ -56,7 +58,7 @@ impl<'a> Parser<'a> {
         debug!("parser: parsing identifier");
         let identifier = match self.next_token() {
             Some(Token::Identifier(identifier)) => identifier,
-            _ => unimplemented!()
+            _ => unimplemented!(),
         };
         match self.peek_next_token() {
             Some(Token::RoundLeft) => {
@@ -77,18 +79,18 @@ impl<'a> Parser<'a> {
                     match self.peek_next_token() {
                         Some(Token::RoundRight) => {
                             let _ = self.next_token();
-                            break
+                            break;
                         }
                         Some(Token::Comma) => {
-                            let _= self.next_token();
+                            let _ = self.next_token();
                         }
-                        _ => panic!()
+                        _ => panic!(),
                     }
                 }
                 debug!("parser: parsed function call: {}, {:?}", identifier, args);
                 call(identifier, args)
             }
-            _ => return variable(identifier)
+            _ => return variable(identifier),
         }
     }
 
@@ -98,7 +100,7 @@ impl<'a> Parser<'a> {
             Some(Token::Identifier(_)) => self.parse_identifier(),
             Some(Token::Integer(_)) => self.parse_integer(),
             Some(Token::RoundLeft) => self.parse_paren_expression(),
-            _ => panic!()
+            _ => panic!(),
         }
     }
 
@@ -110,13 +112,13 @@ impl<'a> Parser<'a> {
 
             if token_precedence < expr_precedence {
                 debug!("parser: parsed binary expresion: {:?}", lhs);
-                return lhs
+                return lhs;
             }
 
             let operator = match self.next_token() {
                 Some(Token::Operator(op)) => op,
                 Some(Token::Eof) | Some(Token::NewLine) => return lhs,
-                _ => unreachable!()
+                _ => unreachable!(),
             };
 
             debug!("parser: operator = {}", operator);
@@ -142,7 +144,7 @@ impl<'a> Parser<'a> {
         debug!("parser: parsing prototype");
         let identifier = match self.next_token() {
             Some(Token::Identifier(s)) => s,
-            _ => panic!()
+            _ => panic!(),
         };
 
         match self.next_token() {
@@ -165,18 +167,18 @@ impl<'a> Parser<'a> {
                     match self.peek_next_token() {
                         Some(Token::RoundRight) => {
                             let _ = self.next_token();
-                            break
+                            break;
                         }
                         Some(Token::Comma) => {
-                            let _= self.next_token();
+                            let _ = self.next_token();
                         }
-                        _ => panic!()
+                        _ => panic!(),
                     }
                 }
                 prototype(identifier, args)
             }
 
-            _ => panic!()
+            _ => panic!(),
         }
     }
 
@@ -203,14 +205,17 @@ impl<'a> Parser<'a> {
                     panic!()
                 }
             }
-            _ => panic!()
+            _ => panic!(),
         }
     }
 
     fn parse_top_level(&mut self) -> Box<Expr> {
         debug!("parser: parsing top level");
         let expr = self.parse_expression();
-        let proto = ast::Prototype { name: "__anon_expr".into(), args: vec![] };
+        let proto = ast::Prototype {
+            name: "__anon_expr".into(),
+            args: vec![],
+        };
         function(proto, expr)
     }
 
@@ -222,6 +227,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) {
+        let mut context = Context::new();
         while let Some(token) = self.peek_next_token() {
             match token {
                 Token::Eof => return,
@@ -229,15 +235,33 @@ impl<'a> Parser<'a> {
                     self.next_token();
                 }
                 Token::Def => {
-                    println!("{:?}", self.parse_definition());
+                    let expr = self.parse_definition();
+                    println!("{:?}", expr);
+                    let value = expr.codegen(&mut context);
+                    let string = unsafe {
+                        ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value))
+                    };
+                    println!("{}", string.to_str().unwrap());
                     break;
                 }
                 Token::Extern => {
-                    println!("{:?}", self.parse_extern());
+                    let expr = self.parse_extern();
+                    println!("{:?}", expr);
+                    let value = expr.codegen(&mut context);
+                    let string = unsafe {
+                        ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value))
+                    };
+                    println!("{}", string.to_str().unwrap());
                     break;
                 }
                 _ => {
-                    println!("{:?}", self.parse_top_level());
+                    let expr = self.parse_top_level();
+                    println!("{:?}", expr);
+                    let value = expr.codegen(&mut context);
+                    let string = unsafe {
+                        ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value))
+                    };
+                    println!("{}", string.to_str().unwrap());
                     break;
                 }
             }
@@ -246,26 +270,24 @@ impl<'a> Parser<'a> {
 
     fn get_token_precedence(&mut self) -> u32 {
         match self.peek_next_token() {
-            Some(Token::Operator(s)) => {
-                match s.as_str() {
-                    "^" => 200,
-                    "!" => 100,
-                    "/" => 80,
-                    "*" => 80,
-                    "+" => 60,
-                    "-" => 60,
-                    "==" => 30,
-                    ">=" => 30,
-                    "<=" => 30,
-                    "!=" => 30,
-                    "<" => 30,
-                    ">" => 30,
-                    "&&" => 10,
-                    "||" => 5,
-                    _ => 0,
-                }
-            }
-            _ => 0
+            Some(Token::Operator(s)) => match s.as_str() {
+                "^" => 200,
+                "!" => 100,
+                "/" => 80,
+                "*" => 80,
+                "+" => 60,
+                "-" => 60,
+                "==" => 30,
+                ">=" => 30,
+                "<=" => 30,
+                "!=" => 30,
+                "<" => 30,
+                ">" => 30,
+                "&&" => 10,
+                "||" => 5,
+                _ => 0,
+            },
+            _ => 0,
         }
     }
 }

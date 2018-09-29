@@ -4,7 +4,7 @@ type Ident = String;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Prototype {
     pub name: String,
-    pub args: Vec<String>
+    pub args: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -35,7 +35,10 @@ pub mod helpers {
     }
 
     pub fn prototype<S: Into<String>>(ident: S, args: Vec<String>) -> Box<Expr> {
-        Box::new(Expr::Prototype(Prototype { name: ident.into(), args }))
+        Box::new(Expr::Prototype(Prototype {
+            name: ident.into(),
+            args,
+        }))
     }
 
     pub fn function(proto: Prototype, body: Box<Expr>) -> Box<Expr> {

@@ -1,5 +1,5 @@
-mod paren_counter;
 mod helpers;
+mod paren_counter;
 
 use self::paren_counter::ParenCounter;
 
@@ -243,7 +243,10 @@ impl<'a> Lexer<'a> {
                 identifier_str.push(self.last_char.1);
                 self.next_char();
             } else {
-                debug!("lexer: non-identifier character found: {:?}", self.last_char);
+                debug!(
+                    "lexer: non-identifier character found: {:?}",
+                    self.last_char
+                );
                 self.prev_char();
                 break;
             }
@@ -268,11 +271,11 @@ impl<'a> Lexer<'a> {
             if !self.last_char.1.is_alphanumeric()
                 && self.last_char.1 != '_'
                 && !self.last_char.1.is_whitespace()
-                {
-                    debug!("lexer: next operator character: {:?}", self.last_char);
-                    self.next_char();
-                    identifier_str.push(self.last_char.1);
-                } else {
+            {
+                debug!("lexer: next operator character: {:?}", self.last_char);
+                self.next_char();
+                identifier_str.push(self.last_char.1);
+            } else {
                 debug!("lexer: non-operator character found: {:?}", self.last_char);
                 self.prev_char();
                 break;
@@ -290,10 +293,12 @@ impl<'a> Lexer<'a> {
             '}' => (Token::CurlyRight, self.paren_counter.curly_right()),
             '[' => (Token::SquareLeft, self.paren_counter.square_left()),
             ']' => (Token::SquareRight, self.paren_counter.square_right()),
-            _ => unreachable!()
+            _ => unreachable!(),
         };
         if !is_unmatched {
-            Err(LexerError::UnmatchedParenthesis(self.span(self.last_char.0, token)))?
+            Err(LexerError::UnmatchedParenthesis(
+                self.span(self.last_char.0, token),
+            ))?
         } else {
             debug!("lexer: parsed parenthesis: {:?}", token);
             Ok(self.span(self.last_char.0, token))
