@@ -113,13 +113,12 @@ impl<'a> Parser<'a> {
                 return lhs
             }
 
-            let operator = match self.peek_next_token() {
-                Some(Token::Operator(op)) => {
-                    self.next_token();
-                    op
-                },
-                _ => return lhs,
+            let operator = match self.next_token() {
+                Some(Token::Operator(op)) => op,
+                Some(Token::Eof) | Some(Token::NewLine) => return lhs,
+                _ => unreachable!()
             };
+
             debug!("parser: operator = {}", operator);
             let mut rhs = self.parse_primary();
             debug!("parser: rhs = {:?}", rhs);
@@ -247,7 +246,7 @@ impl<'a> Parser<'a> {
 
     fn get_token_precedence(&mut self) -> u32 {
         match self.peek_next_token() {
-            Some(Token::Identifier(s)) => {
+            Some(Token::Operator(s)) => {
                 match s.as_str() {
                     "^" => 200,
                     "!" => 100,
