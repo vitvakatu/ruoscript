@@ -17,8 +17,10 @@ impl Context {
         unsafe {
             let context = core::LLVMContextCreate();
             let builder = core::LLVMCreateBuilderInContext(context);
-            let module =
-                core::LLVMModuleCreateWithNameInContext(b"entrymodule\0".as_ptr() as *const _, context);
+            let module = core::LLVMModuleCreateWithNameInContext(
+                b"entrymodule\0".as_ptr() as *const _,
+                context,
+            );
             Self {
                 context,
                 module,
@@ -44,24 +46,35 @@ impl Codegen for Expr {
                 }
                 Expr::Variable(ref name) => context.named_values.get(name).cloned().unwrap(),
                 Expr::Call(ref name, ref args) => {
-                    debug!("Call");
                     if is_operator(&name) {
                         let lhs = args[0].codegen(context);
                         let rhs = args[1].codegen(context);
 
                         match name.as_str() {
-                            "+" => {
-                                core::LLVMBuildAdd(context.builder, lhs, rhs, b"addtmp\0".as_ptr() as *const _)
-                            }
-                            "-" => {
-                                core::LLVMBuildSub(context.builder, lhs, rhs, b"subtmp\0".as_ptr() as *const _)
-                            }
-                            "*" => {
-                                core::LLVMBuildMul(context.builder, lhs, rhs, b"multmp\0".as_ptr() as *const _)
-                            }
-                            "/" => {
-                                core::LLVMBuildUDiv(context.builder, lhs, rhs, b"divtmp\0".as_ptr() as *const _)
-                            }
+                            "+" => core::LLVMBuildAdd(
+                                context.builder,
+                                lhs,
+                                rhs,
+                                b"addtmp\0".as_ptr() as *const _,
+                            ),
+                            "-" => core::LLVMBuildSub(
+                                context.builder,
+                                lhs,
+                                rhs,
+                                b"subtmp\0".as_ptr() as *const _,
+                            ),
+                            "*" => core::LLVMBuildMul(
+                                context.builder,
+                                lhs,
+                                rhs,
+                                b"multmp\0".as_ptr() as *const _,
+                            ),
+                            "/" => core::LLVMBuildUDiv(
+                                context.builder,
+                                lhs,
+                                rhs,
+                                b"divtmp\0".as_ptr() as *const _,
+                            ),
                             _ => unimplemented!(),
                         }
                     } else {
@@ -87,13 +100,12 @@ impl Codegen for Expr {
                     }
                 }
                 Expr::Prototype(ref proto) => {
-                    let argument_types = core::LLVMVectorType(
-                        core::LLVMInt32TypeInContext(context.context),
-                        proto.args.len() as _,
-                    );
+                    let mut argument_types: Vec<_> = (0..proto.args.len())
+                        .map(|_| core::LLVMInt32TypeInContext(context.context))
+                        .collect();
                     let function_type = core::LLVMFunctionType(
                         core::LLVMInt32TypeInContext(context.context),
-                        argument_types as *mut *mut _,
+                        argument_types.as_mut_ptr(),
                         proto.args.len() as _,
                         false as _,
                     );
@@ -124,7 +136,10 @@ impl Codegen for Expr {
                     core::LLVMPositionBuilderAtEnd(context.builder, basic_block);
                     context.named_values.clear();
                     let mut params = Vec::with_capacity(proto.args.len());
-                    core::LLVMGetParams(function, params.as_mut_ptr());
+                    for i in 0..proto.args.len() {
+                        let param = core::LLVMGetParam(function, i as _);
+                        params.push(param);
+                    }
                     for (arg, arg_name) in params.iter().zip(proto.args.iter()) {
                         context.named_values.insert(arg_name.clone(), arg.clone());
                     }

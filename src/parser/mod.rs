@@ -110,7 +110,7 @@ impl<'a> Parser<'a> {
             debug!("parser: lhs = {:?}", lhs);
             let token_precedence = self.get_token_precedence();
 
-            if token_precedence < expr_precedence {
+            if token_precedence <= expr_precedence {
                 debug!("parser: parsed binary expresion: {:?}", lhs);
                 return lhs;
             }
