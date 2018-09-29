@@ -271,6 +271,7 @@ impl<'a> Lexer<'a> {
             if !self.last_char.1.is_alphanumeric()
                 && self.last_char.1 != '_'
                 && !self.last_char.1.is_whitespace()
+                && !Self::is_parenthesis(self.last_char.1)
             {
                 debug!("lexer: next operator character: {:?}", self.last_char);
                 self.next_char();

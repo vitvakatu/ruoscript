@@ -227,7 +227,6 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) {
-        let mut context = Context::new();
         while let Some(token) = self.peek_next_token() {
             match token {
                 Token::Eof => return,
@@ -237,35 +236,32 @@ impl<'a> Parser<'a> {
                 Token::Def => {
                     let expr = self.parse_definition();
                     println!("{:?}", expr);
-                    let value = expr.codegen(&mut context);
-                    let string = unsafe {
-                        ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value))
-                    };
-                    println!("{}", string.to_str().unwrap());
+                    Self::codegen(expr);
                     break;
                 }
                 Token::Extern => {
                     let expr = self.parse_extern();
                     println!("{:?}", expr);
-                    let value = expr.codegen(&mut context);
-                    let string = unsafe {
-                        ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value))
-                    };
-                    println!("{}", string.to_str().unwrap());
+                    Self::codegen(expr);
                     break;
                 }
                 _ => {
                     let expr = self.parse_top_level();
                     println!("{:?}", expr);
-                    let value = expr.codegen(&mut context);
-                    let string = unsafe {
-                        ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value))
-                    };
-                    println!("{}", string.to_str().unwrap());
+                    Self::codegen(expr);
                     break;
                 }
             }
         }
+    }
+
+    fn codegen(expr: Box<Expr>) {
+        let mut context = Context::new();
+        let value = expr.codegen(&mut context);
+        let string = unsafe {
+            ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value))
+        };
+        println!("{}", string.to_str().unwrap());
     }
 
     fn get_token_precedence(&mut self) -> u32 {

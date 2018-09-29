@@ -20,7 +20,7 @@ use std::process::Command;
 
 fn main() -> io::Result<()> {
     env_logger::init();
-    let src = "def f(a) { a*a + a*a }";
+    let src = "def f(a) { (1+2+a)*(a+1+2) }";
     let mut lexer = lexer::Lexer::new(src.char_indices());
     let tokens: Vec<_> = lexer
         .get_tokens()

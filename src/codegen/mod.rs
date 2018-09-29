@@ -153,6 +153,17 @@ impl Codegen for Expr {
                         debug!("Something goes wrong");
                         //panic!()
                     }
+
+                    let pass_manager = core::LLVMCreateFunctionPassManagerForModule(context.module);
+                    use llvm_sys::transforms::scalar::*;
+                    LLVMAddBasicAliasAnalysisPass(pass_manager);
+                    LLVMAddInstructionCombiningPass(pass_manager);
+                    LLVMAddReassociatePass(pass_manager);
+                    LLVMAddGVNPass(pass_manager);
+                    LLVMAddCFGSimplificationPass(pass_manager);
+                    core::LLVMInitializeFunctionPassManager(pass_manager);
+                    core::LLVMRunFunctionPassManager(pass_manager, function);
+
                     function
                 }
                 _ => unimplemented!(),
