@@ -65,13 +65,3 @@ pub mod helpers {
         call("^", vec![l, r])
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum CmpOp {
-    Lt,
-    Le,
-    Gt,
-    Ge,
-    NotEq,
-    Eq,
-}

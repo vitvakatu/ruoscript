@@ -7,6 +7,7 @@ extern crate failure_derive;
 extern crate llvm_sys;
 
 mod codegen;
+mod executor;
 mod lexer;
 mod parser;
 mod stack;
@@ -22,15 +23,11 @@ fn main() -> io::Result<()> {
     env_logger::init();
     let src = "1 + 2";
     let mut lexer = lexer::Lexer::new(src.char_indices());
-    let tokens: Vec<_> = lexer
-        .get_tokens()
-        .unwrap()
-        .iter()
-        .map(|span| span.inner.clone())
-        .collect();
+    let tokens: Vec<_> = lexer.get_tokens().unwrap();
     let mut parser = parser::Parser::new(tokens.iter());
 
-    parser.parse();
+    let mut context = codegen::Context::new();
+    parser.parse(&mut context).unwrap();
 
     Ok(())
 }
