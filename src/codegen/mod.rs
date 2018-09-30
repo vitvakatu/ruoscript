@@ -15,6 +15,15 @@ pub struct Context {
 impl Context {
     pub fn new() -> Self {
         unsafe {
+            if llvm_sys::target::LLVM_InitializeNativeTarget() != 0 {
+                panic!()
+            }
+            if llvm_sys::target::LLVM_InitializeNativeAsmParser() != 0 {
+                panic!()
+            }
+            if llvm_sys::target::LLVM_InitializeNativeAsmPrinter() != 0 {
+                panic!()
+            }
             let context = core::LLVMContextCreate();
             let builder = core::LLVMCreateBuilderInContext(context);
             let module = core::LLVMModuleCreateWithNameInContext(

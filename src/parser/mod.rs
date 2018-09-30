@@ -227,6 +227,7 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) {
+        let mut context = Context::new();
         while let Some(token) = self.peek_next_token() {
             match token {
                 Token::Eof => return,
@@ -236,31 +237,52 @@ impl<'a> Parser<'a> {
                 Token::Def => {
                     let expr = self.parse_definition();
                     println!("{:?}", expr);
-                    Self::codegen(expr);
+                    Self::codegen(expr, &mut context);
                     break;
                 }
                 Token::Extern => {
                     let expr = self.parse_extern();
                     println!("{:?}", expr);
-                    Self::codegen(expr);
+                    Self::codegen(expr, &mut context);
                     break;
                 }
                 _ => {
                     let expr = self.parse_top_level();
                     println!("{:?}", expr);
-                    Self::codegen(expr);
+                    let value = expr.codegen(&mut context);
+                    let string =
+                        unsafe { ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value)) };
+                    println!("{}", string.to_str().unwrap());
+                    unsafe {
+                        ::llvm_sys::execution_engine::LLVMLinkInMCJIT();
+                        let mut execution_engine =
+                            0 as ::llvm_sys::execution_engine::LLVMExecutionEngineRef;
+                        let mut err = 0 as *mut i8;
+                        if ::llvm_sys::execution_engine::LLVMCreateExecutionEngineForModule(
+                            &mut execution_engine,
+                            context.module,
+                            &mut err,
+                        ) != 0
+                            {
+                                panic!()
+                            }
+
+                        let mut args: Vec<::llvm_sys::execution_engine::LLVMGenericValueRef> = Vec::new();
+                        let ret = ::llvm_sys::execution_engine::LLVMRunFunction(execution_engine, value, 0 as _, args.as_mut_ptr());
+                        let int_type = ::llvm_sys::core::LLVMInt32TypeInContext(context.context);
+                        let ret = ::llvm_sys::execution_engine::LLVMGenericValueToInt(ret, false as _);
+                        println!("Returned {}", ret);
+                    }
                     break;
                 }
             }
         }
     }
 
-    fn codegen(expr: Box<Expr>) {
-        let mut context = Context::new();
-        let value = expr.codegen(&mut context);
-        let string = unsafe {
-            ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value))
-        };
+    fn codegen(expr: Box<Expr>, context: &mut Context) {
+        let value = expr.codegen(context);
+        let string =
+            unsafe { ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value)) };
         println!("{}", string.to_str().unwrap());
     }
 
