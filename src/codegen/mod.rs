@@ -87,10 +87,10 @@ impl Codegen for Expr {
                             _ => unimplemented!(),
                         }
                     } else {
-                        let function_name = CString::new(name.as_bytes()).unwrap().as_ptr();
-                        let function = core::LLVMGetNamedFunction(context.module, function_name);
+                        let function_name = CString::new(name.as_bytes()).unwrap();
+                        let function = core::LLVMGetNamedFunction(context.module, function_name.as_ptr());
                         if function.is_null() {
-                            panic!()
+                            panic!();
                         }
                         let args_count = core::LLVMCountParams(function);
                         if args_count != args.len() as _ {

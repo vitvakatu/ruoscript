@@ -1,1 +1,5 @@
-print("Hello, world!");
+extern put_char(c)
+
+def main() {
+    put_char(48) + put_char(10)
+}

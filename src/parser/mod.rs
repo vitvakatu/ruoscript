@@ -73,6 +73,16 @@ impl<'a> Parser<'a> {
         self.tokens.peek().cloned().cloned()
     }
 
+    fn skip_newlines(&mut self) {
+        while let Some(Span {
+            inner: Token::NewLine,
+            ..
+        }) = self.peek_next_token()
+        {
+            self.next_token();
+        }
+    }
+
     fn parse_integer(&mut self) -> Result<Box<Expr>, Error> {
         debug!("parsing integer");
         match self.next_token() {
@@ -165,6 +175,7 @@ impl<'a> Parser<'a> {
 
     fn parse_primary(&mut self) -> Result<Box<Expr>, Error> {
         debug!("parsing primary");
+        self.skip_newlines();
         match self.peek_next_token() {
             Some(Span {
                 inner: Token::Identifier(_),
@@ -306,6 +317,8 @@ impl<'a> Parser<'a> {
 
         let proto = self.parse_prototype()?;
 
+        self.skip_newlines();
+
         debug!("parsed proto: {:?}", proto);
 
         match self.next_token() {
@@ -313,8 +326,10 @@ impl<'a> Parser<'a> {
                 inner: Token::CurlyLeft,
                 ..
             }) => {
+                self.skip_newlines();
                 let body = self.parse_expression()?;
                 let res = function(proto, body);
+                self.skip_newlines();
                 match self.next_token() {
                     Some(Span {
                         inner: Token::CurlyRight,

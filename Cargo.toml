@@ -9,6 +9,7 @@ env_logger = "0.5.13"
 failure = "0.1.2"
 failure_derive = "0.1.2"
 llvm-sys = "70.0.0"
+libc = "0.2"
 
 [dev-dependencies]
 env_logger = "0.5.13"
