@@ -3,7 +3,7 @@ use llvm_sys::{self, core, prelude::*};
 use std::collections::HashMap;
 use std::ffi::CString;
 
-use parser::ast::Expr;
+use parser::ast::{Expr, Prototype};
 
 pub struct Context {
     pub context: LLVMContextRef,
@@ -120,23 +120,7 @@ impl Codegen for Expr {
                     }
                 }
                 Expr::Prototype(ref proto) => {
-                    let mut argument_types: Vec<_> = (0..proto.args.len())
-                        .map(|_| core::LLVMInt32TypeInContext(context.context))
-                        .collect();
-                    let function_type = core::LLVMFunctionType(
-                        core::LLVMInt32TypeInContext(context.context),
-                        argument_types.as_mut_ptr(),
-                        proto.args.len() as _,
-                        false as _,
-                    );
-                    let function_name = CString::new(proto.name.clone()).unwrap();
-                    let function = core::LLVMAddFunction(
-                        context.module,
-                        function_name.as_ptr(),
-                        function_type,
-                    );
-                    core::LLVMSetLinkage(function, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
-                    function
+                    proto.codegen(context)
                 }
                 Expr::Function(ref proto, ref body) => {
                     let function_name = CString::new(proto.name.clone()).unwrap();
@@ -163,8 +147,16 @@ impl Codegen for Expr {
                     for (arg, arg_name) in params.iter().zip(proto.args.iter()) {
                         context.named_values.insert(arg_name.clone(), arg.clone());
                     }
-                    let ret_value = body.codegen(context);
-                    core::LLVMBuildRet(context.builder, ret_value);
+
+                    let mut ret_value = None;
+                    for expr in &body.exprs {
+                        ret_value = Some(expr.codegen(context));
+                    }
+                    match ret_value {
+                        Some(value) => core::LLVMBuildRet(context.builder, value),
+                        None => core::LLVMBuildRetVoid(context.builder),
+                    };
+
                     if llvm_sys::analysis::LLVMVerifyFunction(
                         function,
                         llvm_sys::analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction,
@@ -187,6 +179,30 @@ impl Codegen for Expr {
                     function
                 }
             }
+        }
+    }
+}
+
+impl Codegen for Prototype {
+    fn codegen(&self, context: &mut Context) -> LLVMValueRef {
+        unsafe {
+            let mut argument_types: Vec<_> = (0..self.args.len())
+                .map(|_| core::LLVMInt32TypeInContext(context.context))
+                .collect();
+            let function_type = core::LLVMFunctionType(
+                core::LLVMInt32TypeInContext(context.context),
+                argument_types.as_mut_ptr(),
+                self.args.len() as _,
+                false as _,
+            );
+            let function_name = CString::new(self.name.clone()).unwrap();
+            let function = core::LLVMAddFunction(
+                context.module,
+                function_name.as_ptr(),
+                function_type,
+            );
+            core::LLVMSetLinkage(function, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
+            function
         }
     }
 }

@@ -6,6 +6,11 @@ pub struct Prototype {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct Block {
+    pub exprs: Vec<Box<Expr>>,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Integer(i32),
     Variable(String),
@@ -14,7 +19,7 @@ pub enum Expr {
     /// Function prototype (function name, arguments)
     Prototype(Prototype),
     /// Function itself (prototype + body)
-    Function(Prototype, Box<Expr>),
+    Function(Prototype, Block),
 }
 
 pub mod helpers {
@@ -40,8 +45,8 @@ pub mod helpers {
         }))
     }
 
-    pub fn function(proto: Prototype, body: Box<Expr>) -> Box<Expr> {
-        Box::new(Expr::Function(proto, body))
+    pub fn function(proto: Prototype, exprs: Vec<Box<Expr>>) -> Box<Expr> {
+        Box::new(Expr::Function(proto, Block { exprs }))
     }
 
     pub fn add(l: Box<Expr>, r: Box<Expr>) -> Box<Expr> {

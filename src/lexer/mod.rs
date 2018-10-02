@@ -346,9 +346,9 @@ mod tests {
     macro_rules! assert_tokens {
         ($($input:expr => [$($tokens:expr),*]),*) => {
             $({
-                let mut state = init_state($input);
-                let mut tokens = vec![$($tokens),*];
-                let mut parsed_tokens = state.get_tokens().unwrap();
+                let mut lexer = init_state($input);
+                let tokens = vec![$($tokens),*];
+                let mut parsed_tokens = lexer.get_tokens().unwrap();
                 assert_eq!(parsed_tokens.pop().unwrap().inner, Token::Eof);
                 assert_eq!(parsed_tokens, tokens);
             })*

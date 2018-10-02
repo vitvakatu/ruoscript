@@ -14,7 +14,6 @@ enum ExpectedToken {
     RoundLeft,
     RoundRight,
     CurlyLeft,
-    CurlyRight,
     Operator,
 }
 
@@ -26,7 +25,6 @@ impl ::std::fmt::Debug for ExpectedToken {
             ExpectedToken::RoundLeft => write!(f, "'('"),
             ExpectedToken::RoundRight => write!(f, "')'"),
             ExpectedToken::CurlyLeft => write!(f, "'{{'"),
-            ExpectedToken::CurlyRight => write!(f, "'}}'"),
             ExpectedToken::Operator => write!(f, "operator"),
         }
     }
@@ -324,18 +322,19 @@ impl<'a> Parser<'a> {
                 inner: Token::CurlyLeft,
                 ..
             }) => {
-                self.skip_newlines();
-                let body = self.parse_expression()?;
-                let res = function(proto, body);
-                self.skip_newlines();
-                match self.next_token() {
-                    Some(Span {
-                        inner: Token::CurlyRight,
-                        ..
-                    }) => Ok(res),
-                    Some(other) => Err(ParserError::Expected(ExpectedToken::CurlyRight, other))?,
-                    None => Err(ParserError::Eof)?,
-                }
+                let mut body = Vec::new();
+                let body = loop {
+                    self.skip_newlines();
+                    match self.peek_next_token() {
+                        Some(Span { inner: Token::CurlyRight, .. }) => break body,
+                        Some(_) => {
+                            body.push(self.parse_expression()?);
+                        }
+                        None => Err(ParserError::Eof)?
+                    }
+                };
+                self.next_token();
+                Ok(function(proto, body))
             }
             Some(other) => Err(ParserError::Expected(ExpectedToken::CurlyLeft, other))?,
             None => Err(ParserError::Eof)?,
@@ -408,31 +407,50 @@ mod tests {
     extern crate env_logger;
     use super::*;
     use failure::Error;
-    use parser::ast::{helpers::*};
+    use parser::ast::{Expr, Block, Prototype, helpers::*};
     use lexer::Lexer;
 
-    fn parse_string(input: &str) -> Result<Vec<Box<Expr>>, Error> {
+    fn parse_as_top_level(input: &str) -> Result<Vec<Box<Expr>>, Error> {
         let mut lexer = Lexer::new(input.char_indices());
         let tokens = lexer.get_tokens()?;
         let mut parser = Parser::new(tokens.iter());
         parser.parse()
     }
 
+    fn parse_as_func_body(input: &str) -> Result<Vec<Box<Expr>>, Error> {
+        let input = "fun anon_func() {".to_string() + input + "}";
+        parse_as_top_level(&input)
+    }
+
     macro_rules! assert_parse {
         ($program:expr => $($e:expr),*) => {
-            assert_eq!(parse_string($program).unwrap(), vec![$($e),*]);
+            let parsed = parse_as_func_body($program).unwrap();
+            assert_eq!(parsed.len(), 1);
+            match *parsed[0] {
+                Expr::Function(Prototype {
+                    ref name,
+                    ref args,
+                }, Block { ref exprs }) => {
+                    assert_eq!(name, "anon_func");
+                    assert_eq!(args.len(), 0);
+                    assert_eq!(exprs, &vec![$($e),*]);
+                }
+                _ => panic!()
+            }
         }
     }
 
-    macro_rules! assert_not_parse {
-        ($program:expr) => {
-            assert!(parse_string($program).is_err());
-        };
+    macro_rules! assert_parse_top_level {
+        ($program:expr => $($e:expr),*) => {
+            assert_eq!(parse_as_top_level($program).unwrap(), vec![$($e),*]);
+        }
     }
 
     #[test]
     fn empty() {
         let _ = env_logger::try_init();
+        assert_parse_top_level!("" => );
+        // empty function body
         assert_parse!("" => );
     }
 
