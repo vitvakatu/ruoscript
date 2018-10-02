@@ -11,6 +11,7 @@ use std::slice::Iter;
 enum ExpectedToken {
     Integer,
     Identifier,
+    String,
     RoundLeft,
     RoundRight,
     CurlyLeft,
@@ -22,6 +23,7 @@ impl ::std::fmt::Debug for ExpectedToken {
         match *self {
             ExpectedToken::Integer => write!(f, "integer"),
             ExpectedToken::Identifier => write!(f, "identifier"),
+            ExpectedToken::String => write!(f, "string literal"),
             ExpectedToken::RoundLeft => write!(f, "'('"),
             ExpectedToken::RoundRight => write!(f, "')'"),
             ExpectedToken::CurlyLeft => write!(f, "'{{'"),
@@ -87,6 +89,18 @@ impl<'a> Parser<'a> {
                 ..
             }) => Ok(int(i)),
             Some(other) => Err(ParserError::Expected(ExpectedToken::Integer, other))?,
+            None => Err(ParserError::Eof)?,
+        }
+    }
+
+    fn parse_string(&mut self) -> Result<Box<Expr>, Error> {
+        debug!("parsing string");
+        match self.next_token() {
+            Some(Span {
+                inner: Token::StringLiteral(s),
+                ..
+            }) => Ok(string(s)),
+            Some(other) => Err(ParserError::Expected(ExpectedToken::String, other))?,
             None => Err(ParserError::Eof)?,
         }
     }
@@ -177,6 +191,10 @@ impl<'a> Parser<'a> {
                 inner: Token::Identifier(_),
                 ..
             }) => self.parse_identifier(),
+            Some(Span {
+                inner: Token::StringLiteral(_),
+                ..
+            }) => self.parse_string(),
             Some(Span {
                 inner: Token::Integer(_),
                 ..
@@ -331,11 +349,14 @@ impl<'a> Parser<'a> {
                 let body = loop {
                     self.skip_newlines();
                     match self.peek_next_token() {
-                        Some(Span { inner: Token::CurlyRight, .. }) => break body,
+                        Some(Span {
+                            inner: Token::CurlyRight,
+                            ..
+                        }) => break body,
                         Some(_) => {
                             body.push(self.parse_expression()?);
                         }
-                        None => Err(ParserError::Eof)?
+                        None => Err(ParserError::Eof)?,
                     }
                 };
                 self.next_token();
@@ -412,8 +433,8 @@ mod tests {
     extern crate env_logger;
     use super::*;
     use failure::Error;
-    use parser::ast::{Expr, Block, Prototype, helpers::*};
     use lexer::Lexer;
+    use parser::ast::{helpers::*, Block, Expr, Prototype};
 
     fn parse_as_top_level(input: &str) -> Result<Vec<Box<Expr>>, Error> {
         let mut lexer = Lexer::new(input.char_indices());
@@ -466,6 +487,15 @@ mod tests {
         assert_parse!("0" => int(0));
         assert_parse!("1" => int(1));
         assert_parse!("3_000_000" => int(3_000_000));
+    }
+
+    #[test]
+    fn strings() {
+        let _ = env_logger::try_init();
+        assert_parse!("''" => string("".into()));
+        assert_parse!("\"\"" => string("".into()));
+        assert_parse!("'some string'" => string("some string".into()));
+        assert_parse!("\"some string\"" => string("some string".into()));
     }
 
     /*#[test]
@@ -523,7 +553,7 @@ mod tests {
         assert_parse!("1 + 3 * 4" => add(int(1), mul(int(3), int(4))));
         assert_parse!("1 * 3 + 4" => add(mul(int(1), int(3)), int(4)));
         assert_parse!("1*3+4" => add(mul(int(1), int(3)), int(4)));
-//        assert_parse!("1 - - b" => sub(int(1), sub("-", vec![variable("b")])));
+        //        assert_parse!("1 - - b" => sub(int(1), sub("-", vec![variable("b")])));
         assert_parse!("3 * (8 - 5)" => mul(int(3), sub(int(8), int(5))));
         assert_parse!("3 - (8 * 5)" => sub(int(3), mul(int(8), int(5))));
         assert_parse!("3-(8*5)" => sub(int(3), mul(int(8), int(5))));

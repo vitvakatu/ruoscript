@@ -4,8 +4,8 @@ extern crate env_logger;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
-extern crate llvm_sys;
 extern crate libc;
+extern crate llvm_sys;
 
 mod codegen;
 mod executor;
@@ -18,7 +18,7 @@ use std::fs::File;
 use std::io::{self, Read};
 
 #[no_mangle]
-pub extern fn put_char(c: i32) -> i32 {
+pub extern "C" fn put_char(c: i32) -> i32 {
     print!("{}", c as u8 as char);
     0
 }

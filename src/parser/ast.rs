@@ -13,6 +13,7 @@ pub struct Block {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Integer(i32),
+    String(String),
     Variable(String),
     /// Function call (function name, arguments)
     Call(String, Vec<Box<Expr>>),
@@ -28,6 +29,10 @@ pub mod helpers {
 
     pub fn int(v: i32) -> Box<Expr> {
         Box::new(Expr::Integer(v))
+    }
+
+    pub fn string(s: String) -> Box<Expr> {
+        Box::new(Expr::String(s))
     }
 
     pub fn variable<S: Into<String>>(v: S) -> Box<Expr> {

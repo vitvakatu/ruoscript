@@ -99,7 +99,8 @@ impl Codegen for Expr {
                         }
                     } else {
                         let function_name = CString::new(name.as_bytes()).unwrap();
-                        let function = core::LLVMGetNamedFunction(context.module, function_name.as_ptr());
+                        let function =
+                            core::LLVMGetNamedFunction(context.module, function_name.as_ptr());
                         if function.is_null() {
                             panic!();
                         }
@@ -119,9 +120,7 @@ impl Codegen for Expr {
                         res
                     }
                 }
-                Expr::Prototype(ref proto) => {
-                    proto.codegen(context)
-                }
+                Expr::Prototype(ref proto) => proto.codegen(context),
                 Expr::Function(ref proto, ref body) => {
                     let function_name = CString::new(proto.name.clone()).unwrap();
                     let mut function =
@@ -178,6 +177,7 @@ impl Codegen for Expr {
 
                     function
                 }
+                _ => unimplemented!()
             }
         }
     }
@@ -196,11 +196,8 @@ impl Codegen for Prototype {
                 false as _,
             );
             let function_name = CString::new(self.name.clone()).unwrap();
-            let function = core::LLVMAddFunction(
-                context.module,
-                function_name.as_ptr(),
-                function_type,
-            );
+            let function =
+                core::LLVMAddFunction(context.module, function_name.as_ptr(), function_type);
             core::LLVMSetLinkage(function, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
             function
         }

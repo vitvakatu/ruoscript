@@ -192,7 +192,7 @@ impl<'a> Lexer<'a> {
 
         // String literal: ["'].*["']
         if self.last_char.1 == '"' || self.last_char.1 == '\'' {
-            return Ok(self.tokenize_string())
+            return Ok(self.tokenize_string());
         }
 
         // Comment until end of line
