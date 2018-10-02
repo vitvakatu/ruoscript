@@ -7,7 +7,7 @@ pub struct Prototype {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
-    Integer(u32),
+    Integer(i32),
     Variable(String),
     /// Function call (function name, arguments)
     Call(String, Vec<Box<Expr>>),
@@ -21,7 +21,7 @@ pub mod helpers {
     #![allow(unused)]
     use super::*;
 
-    pub fn int(v: u32) -> Box<Expr> {
+    pub fn int(v: i32) -> Box<Expr> {
         Box::new(Expr::Integer(v))
     }
 

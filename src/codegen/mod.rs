@@ -62,7 +62,7 @@ impl Codegen for Expr {
             match *self {
                 Expr::Integer(i) => {
                     let integer_type = core::LLVMInt32TypeInContext(context.context);
-                    core::LLVMConstInt(integer_type, i as u64, 0 as LLVMBool)
+                    core::LLVMConstInt(integer_type, i as _, 0 as LLVMBool)
                 }
                 Expr::Variable(ref name) => context.named_values.get(name).cloned().unwrap(),
                 Expr::Call(ref name, ref args) => {

@@ -54,7 +54,7 @@ pub enum Token {
     Comma,
     Identifier(String),
     Operator(String),
-    Integer(u32),
+    Integer(i32),
 }
 
 pub struct Lexer<'a> {

@@ -408,15 +408,19 @@ mod tests {
     extern crate env_logger;
     use super::*;
     use failure::Error;
-    use ast::{helpers::*};
+    use parser::ast::{helpers::*};
+    use lexer::Lexer;
 
-    /*fn parse_string(input: &str) -> Result<Box<Expr>, Error> {
-
-    }*/
+    fn parse_string(input: &str) -> Result<Vec<Box<Expr>>, Error> {
+        let mut lexer = Lexer::new(input.char_indices());
+        let tokens = lexer.get_tokens()?;
+        let mut parser = Parser::new(tokens.iter());
+        parser.parse()
+    }
 
     macro_rules! assert_parse {
         ($program:expr => $($e:expr),*) => {
-            assert_eq!(parse_string($program).unwrap(), block(vec![$($e),*]));
+            assert_eq!(parse_string($program).unwrap(), vec![$($e),*]);
         }
     }
 
@@ -433,7 +437,7 @@ mod tests {
     }
 
     #[test]
-    fn int_test() {
+    fn integers() {
         let _ = env_logger::try_init();
         assert_parse!("123" => int(123));
         assert_parse!("0" => int(0));
@@ -443,7 +447,7 @@ mod tests {
         assert_parse!("3_000_000" => int(3_000_000));
     }
 
-    #[test]
+    /*#[test]
     fn float_test() {
         let _ = env_logger::try_init();
         assert_parse!("0.0" => float(0.0));
@@ -458,55 +462,52 @@ mod tests {
         assert_parse!("1.6e+7" => float(1.6e7));
         assert_parse!("1.6E7" => float(1.6e7));
         assert_parse!("-1.6e7" => float(-1.6e7));
-    }
+    }*/
 
     #[test]
-    fn ident_test() {
+    fn identifiers() {
         let _ = env_logger::try_init();
-        assert_parse!("a" => identifier("a"));
-        assert_parse!("abc" => identifier("abc"));
-        assert_parse!("a123" => identifier("a123"));
-        assert_parse!("_213" => identifier("_213"));
-        assert_parse!("_" => identifier("_"));
-        assert_parse!("+" => identifier("+"));
-        assert_parse!(">=" => identifier(">="));
-        assert_parse!("∮" => identifier("∮"));
+        assert_parse!("a" => variable("a"));
+        assert_parse!("abc" => variable("abc"));
+        assert_parse!("a123" => variable("a123"));
+        assert_parse!("_213" => variable("_213"));
+        assert_parse!("_" => variable("_"));
     }
 
-    #[test]
-    fn string_test() {
+    /*#[test]
+    fn strings() {
         let _ = env_logger::try_init();
         assert_parse!("\"\"" => string(""));
         assert_parse!("\"Hello\"" => string("Hello"));
         assert_parse!("\"∮ E⋅da = Q,  n → ∞, ∑ f(i) = ∏ g(i)\"" => string("∮ E⋅da = Q,  n → ∞, ∑ f(i) = ∏ g(i)"));
-    }
+    }*/
 
-    #[test]
+    /*#[test]
     fn unary_exprs() {
         let _ = env_logger::try_init();
         assert_parse!("- a" => fun_call("-", vec![identifier("a")]));
-    }
+    }*/
 
     #[test]
     fn binary_exprs() {
         let _ = env_logger::try_init();
         assert_parse!("1 + 2" => add(int(1), int(2)));
         assert_parse!("1+2" => add(int(1), int(2)));
-        assert_parse!("1 + a" => add(int(1), identifier("a")));
-        assert_parse!("a + 2" => add(identifier("a"), int(2)));
-        assert_parse!("a + b" => add(identifier("a"), identifier("b")));
-        assert_parse!("a+b" => add(identifier("a"), identifier("b")));
+        assert_parse!("1 + a" => add(int(1), variable("a")));
+        assert_parse!("a + 2" => add(variable("a"), int(2)));
+        assert_parse!("a + b" => add(variable("a"), variable("b")));
+        assert_parse!("a+b" => add(variable("a"), variable("b")));
         assert_parse!("1 - 2" => sub(int(1), int(2)));
         assert_parse!("(1 - 2)" => sub(int(1), int(2)));
         assert_parse!("1 + 3 * 4" => add(int(1), mul(int(3), int(4))));
         assert_parse!("1 * 3 + 4" => add(mul(int(1), int(3)), int(4)));
         assert_parse!("1*3+4" => add(mul(int(1), int(3)), int(4)));
-        assert_parse!("1 - - b" => sub(int(1), fun_call("-", vec![identifier("b")])));
+//        assert_parse!("1 - - b" => sub(int(1), sub("-", vec![variable("b")])));
         assert_parse!("3 * (8 - 5)" => mul(int(3), sub(int(8), int(5))));
         assert_parse!("3 - (8 * 5)" => sub(int(3), mul(int(8), int(5))));
         assert_parse!("3-(8*5)" => sub(int(3), mul(int(8), int(5))));
         assert_parse!("3 - 8 * 5" => sub(int(3), mul(int(8), int(5))));
         assert_parse!("2 ^ 3 ^ 4" => pow(int(2), pow(int(3), int(4))));
-        assert_parse!("a^b^c" => pow(identifier("a"), pow(identifier("b"), identifier("c"))));
+        assert_parse!("a^b^c" => pow(variable("a"), pow(variable("b"), variable("c"))));
     }
 }
