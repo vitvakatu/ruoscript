@@ -11,9 +11,7 @@ mod codegen;
 mod executor;
 mod lexer;
 mod parser;
-mod stack;
 mod types;
-mod value;
 
 use std::env;
 use std::fs::File;
