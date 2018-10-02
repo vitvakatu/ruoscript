@@ -1,5 +1,5 @@
 extern put_char(c)
 
-def main() {
+fun main() {
     put_char(48) + put_char(10)
 }

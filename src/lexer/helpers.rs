@@ -20,8 +20,8 @@ pub fn ext() -> Token {
     Token::Extern
 }
 
-pub fn def() -> Token {
-    Token::Def
+pub fn fun() -> Token {
+    Token::Fun
 }
 
 pub fn round_left() -> Token {

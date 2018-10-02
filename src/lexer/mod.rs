@@ -44,7 +44,7 @@ impl<T> Span<T> {
 pub enum Token {
     Eof,
     NewLine,
-    Def,
+    Fun,
     Extern,
     RoundLeft,
     RoundRight,
@@ -251,9 +251,9 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
-        if identifier_str == "def" {
-            debug!("lexer: found def");
-            return Ok(Span::new(start_index, self.last_char.0, Token::Def));
+        if identifier_str == "fun" {
+            debug!("lexer: found fun");
+            return Ok(Span::new(start_index, self.last_char.0, Token::Fun));
         } else if identifier_str == "extern" {
             debug!("lexer: found extern");
             return Ok(Span::new(start_index, self.last_char.0, Token::Extern));

@@ -312,7 +312,7 @@ impl<'a> Parser<'a> {
 
     fn parse_definition(&mut self) -> Result<Box<Expr>, Error> {
         debug!("parsing definition");
-        // skip 'def'
+        // skip 'fun'
         let _ = self.next_token();
 
         let proto = self.parse_prototype()?;
@@ -358,7 +358,7 @@ impl<'a> Parser<'a> {
                 Token::NewLine => {
                     self.next_token();
                 }
-                Token::Def => {
+                Token::Fun => {
                     let expr = self.parse_definition()?;
                     debug!("Parsed definition: {:?}", expr);
                     Self::codegen(expr, context);
