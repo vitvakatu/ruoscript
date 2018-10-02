@@ -13,6 +13,10 @@ pub fn int(n: i32) -> Token {
     Token::Integer(n)
 }
 
+pub fn string(s: &str) -> Token {
+    Token::StringLiteral(s.to_string())
+}
+
 pub fn nl() -> Token {
     Token::NewLine
 }

@@ -53,6 +53,7 @@ pub enum Token {
     SquareRight,
     Comma,
     Identifier(String),
+    StringLiteral(String),
     Operator(String),
     Integer(i32),
 }
@@ -85,6 +86,17 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
+    }
+
+    // do not ignore whitespaces
+    fn peek_next_char_with_whitespace(&mut self) -> bool {
+        while let Some((i, c)) = self.input.peek().cloned() {
+            self.prev_char = self.last_char;
+            self.last_char = (i, c);
+            debug!("lexer: next char: {:?}", self.last_char);
+            return true;
+        }
+        return false;
     }
 
     fn peek_next_char(&mut self) -> bool {
@@ -168,12 +180,19 @@ impl<'a> Lexer<'a> {
             return self.tokenize_integer().map(Some);
         }
 
+        // Parenthesis: [](){}
         if Self::is_parenthesis(self.last_char.1) {
             return self.tokenize_parenthesis().map(Some);
         }
 
+        // Comma: ,
         if self.last_char.1 == ',' {
             return Ok(Some(self.span(self.last_char.0, Token::Comma)));
+        }
+
+        // String literal: ["'].*["']
+        if self.last_char.1 == '"' || self.last_char.1 == '\'' {
+            return Ok(self.tokenize_string())
         }
 
         // Comment until end of line
@@ -230,6 +249,20 @@ impl<'a> Lexer<'a> {
         })?;
         debug!("lexer: number parsed: {}", number);
         return Ok(self.span(start_index, Token::Integer(number)));
+    }
+
+    fn tokenize_string(&mut self) -> Option<Span<Token>> {
+        let mut string = String::new();
+        let start_index = self.last_char.0;
+        while self.peek_next_char_with_whitespace() {
+            self.next_char();
+            if self.last_char.1 == '\'' || self.last_char.1 == '"' {
+                return Some(self.span(start_index, Token::StringLiteral(string)));
+            } else {
+                string.push(self.last_char.1);
+            }
+        }
+        None
     }
 
     fn tokenize_identifier(&mut self) -> Result<Span<Token>, Error> {
@@ -403,6 +436,16 @@ mod tests {
                 Span::new(0, 1, ident("a")),
                 Span::new(2, 3, ident("b"))
                 ]
+        }
+    }
+
+    #[test]
+    fn strings() {
+        assert_tokens!{
+            "\"\"" => [Span::new(0, 2, string(""))],
+            "''" => [Span::new(0, 2, string(""))],
+            "\"some string\"" => [Span::new(0, 13, string("some string"))],
+            "'some string'" => [Span::new(0, 13, string("some string"))]
         }
     }
 
