@@ -226,8 +226,13 @@ impl<'a> Parser<'a> {
             debug!("rhs = {:?}", rhs);
 
             let next_precedence = self.get_token_precedence()?;
-            if token_precedence < next_precedence {
-                rhs = self.parse_binary_operator(token_precedence + 1, rhs)?;
+            let should_fold = if operator == "^" {
+                token_precedence >= next_precedence
+            } else {
+                token_precedence < next_precedence
+            };
+            if should_fold {
+                rhs = self.parse_binary_operator(token_precedence - 1, rhs)?;
             }
 
             lhs = call(operator, vec![lhs, rhs]);
@@ -460,8 +465,6 @@ mod tests {
         assert_parse!("123" => int(123));
         assert_parse!("0" => int(0));
         assert_parse!("1" => int(1));
-        assert_parse!("-1" => int(-1));
-        assert_parse!("-0" => int(0));
         assert_parse!("3_000_000" => int(3_000_000));
     }
 
