@@ -1,5 +1,3 @@
-type Ident = String;
-
 /// Function prototype
 #[derive(Debug, PartialEq, Clone)]
 pub struct Prototype {
@@ -20,6 +18,7 @@ pub enum Expr {
 }
 
 pub mod helpers {
+    #![allow(unused)]
     use super::*;
 
     pub fn int(v: u32) -> Box<Expr> {

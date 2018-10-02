@@ -24,16 +24,14 @@ impl Executor {
 
     pub fn execute_main(&self, context: &mut Context) -> i32 {
         unsafe {
-            let mut args: Vec<LLVMGenericValueRef> = Vec::new();
-
             let main_function =
                 core::LLVMGetNamedFunction(context.module, b"main\0".as_ptr() as *const _);
             if main_function.is_null() {
                 panic!("Could not find main function");
             }
 
-            let mut arg_v = Vec::new();
-            let mut env_v = Vec::new();
+            let arg_v = Vec::new();
+            let env_v = Vec::new();
             let ret = LLVMRunFunctionAsMain(
                 self.engine,
                 main_function,

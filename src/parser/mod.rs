@@ -1,9 +1,7 @@
 pub mod ast;
 
 use self::ast::{helpers::*, Expr, Prototype};
-use super::lexer::{Lexer, Span, Token};
-
-use codegen::{Codegen, Context};
+use super::lexer::{Span, Token};
 
 use failure::Error;
 use std::iter::Peekable;
@@ -351,36 +349,30 @@ impl<'a> Parser<'a> {
         self.parse_prototype()
     }
 
-    pub fn parse(&mut self, context: &mut Context) -> Result<(), Error> {
+    pub fn parse(&mut self) -> Result<Vec<Box<Expr>>, Error> {
+        let mut exprs = Vec::new();
         while let Some(token) = self.peek_next_token() {
             match token.inner {
-                Token::Eof => return Ok(()),
+                Token::Eof => return Ok(exprs),
                 Token::NewLine => {
                     self.next_token();
                 }
                 Token::Fun => {
                     let expr = self.parse_definition()?;
                     debug!("Parsed definition: {:?}", expr);
-                    Self::codegen(expr, context);
+                    exprs.push(expr);
                 }
                 Token::Extern => {
                     let expr = self
                         .parse_extern()
                         .map(|proto| prototype(proto.name, proto.args))?;
                     debug!("Parsed extern: {:?}", expr);
-                    Self::codegen(expr, context);
+                    exprs.push(expr);
                 }
                 _ => Err(ParserError::UnexpectedTopLevel(token))?,
             }
         }
-        Ok(())
-    }
-
-    fn codegen(expr: Box<Expr>, context: &mut Context) {
-        let value = expr.codegen(context);
-        let string =
-            unsafe { ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintValueToString(value)) };
-        debug!("{}", string.to_str().unwrap());
+        Ok(exprs)
     }
 
     fn get_token_precedence(&mut self) -> Result<u32, Error> {
@@ -415,7 +407,12 @@ impl<'a> Parser<'a> {
 mod tests {
     extern crate env_logger;
     use super::*;
-    //use ast::{helpers::*, UnOp, BinOp};
+    use failure::Error;
+    use ast::{helpers::*};
+
+    /*fn parse_string(input: &str) -> Result<Box<Expr>, Error> {
+
+    }*/
 
     macro_rules! assert_parse {
         ($program:expr => $($e:expr),*) => {

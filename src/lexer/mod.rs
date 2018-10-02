@@ -5,7 +5,6 @@ use self::paren_counter::ParenCounter;
 
 use failure::Error;
 use failure::ResultExt;
-use std::fmt::{self, Display};
 use std::iter::Peekable;
 use std::str::CharIndices;
 
@@ -67,7 +66,7 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     pub fn new(input: CharIndices<'a>) -> Lexer<'a> {
-        let mut input = input.peekable();
+        let input = input.peekable();
         Self {
             last_char: (0, ' '),
             prev_char: (0, ' '),
@@ -238,7 +237,7 @@ impl<'a> Lexer<'a> {
         let start_index = self.last_char.0;
         identifier_str.push(self.last_char.1);
         while self.peek_next_char() {
-            if self.last_char.1.is_alphanumeric() || self.last_char.1 == '_' {
+            if Self::is_identifier_char(self.last_char.1) {
                 debug!("lexer: next identifier character: {:?}", self.last_char);
                 identifier_str.push(self.last_char.1);
                 self.next_char();

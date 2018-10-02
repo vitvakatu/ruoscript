@@ -1,3 +1,4 @@
+#![allow(unused)]
 use super::Token;
 
 pub fn ident(i: &str) -> Token {

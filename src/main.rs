@@ -16,7 +16,6 @@ mod types;
 use std::env;
 use std::fs::File;
 use std::io::{self, Read};
-use std::process::Command;
 
 #[no_mangle]
 pub extern fn put_char(c: i32) -> i32 {
@@ -45,15 +44,12 @@ fn main() -> io::Result<()> {
         llvm_sys::support::LLVMAddSymbol(b"put_char\0".as_ptr() as *const _, put_char as *mut _);
     }
 
+    let exprs = parser.parse().unwrap();
+
     let mut context = codegen::Context::new();
+    context.codegen_module(exprs);
 
     let executor = executor::Executor::new(&mut context);
-
-    parser.parse(&mut context).unwrap();
-
-    let string =
-        unsafe { ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintModuleToString(context.module)) };
-    debug!("Final output: \n{}", string.to_str().unwrap());
 
     let ret = executor.execute_main(&mut context);
     println!("Returned: {}", ret);

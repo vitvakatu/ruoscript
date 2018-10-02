@@ -38,6 +38,17 @@ impl Context {
             }
         }
     }
+
+    pub fn codegen_module(&mut self, exprs: Vec<Box<Expr>>) {
+        for expr in &exprs {
+            expr.codegen(self);
+        }
+
+        let string = unsafe {
+            ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintModuleToString(self.module))
+        };
+        debug!("Generated module: \n {}", string.to_str().unwrap());
+    }
 }
 
 pub trait Codegen {
@@ -175,7 +186,6 @@ impl Codegen for Expr {
 
                     function
                 }
-                _ => unimplemented!(),
             }
         }
     }
