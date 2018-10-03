@@ -44,6 +44,7 @@ pub enum Token {
     Eof,
     NewLine,
     Fun,
+    Var,
     Extern,
     RoundLeft,
     RoundRight,
@@ -283,15 +284,24 @@ impl<'a> Lexer<'a> {
                 break;
             }
         }
-        if identifier_str == "fun" {
-            debug!("lexer: found fun");
-            return Ok(Span::new(start_index, self.last_char.0, Token::Fun));
-        } else if identifier_str == "extern" {
-            debug!("lexer: found extern");
-            return Ok(Span::new(start_index, self.last_char.0, Token::Extern));
-        } else {
-            debug!("lexer: parsed identifier: {}", identifier_str);
-            return Ok(self.span(start_index, Token::Identifier(identifier_str)));
+
+        match identifier_str.as_str() {
+            "fun" => {
+                debug!("found fun");
+                Ok(Span::new(start_index, self.last_char.0, Token::Fun))
+            }
+            "extern" => {
+                debug!("found extern");
+                Ok(Span::new(start_index, self.last_char.0, Token::Extern))
+            }
+            "var" => {
+                debug!("found var");
+                Ok(Span::new(start_index, self.last_char.0, Token::Var))
+            }
+            _ => {
+                debug!("parsed identifier: {}", identifier_str);
+                Ok(self.span(start_index, Token::Identifier(identifier_str)))
+            }
         }
     }
 
@@ -436,6 +446,19 @@ mod tests {
                 Span::new(0, 1, ident("a")),
                 Span::new(2, 3, ident("b"))
                 ]
+        }
+    }
+
+    #[test]
+    fn var_declarations() {
+        assert_tokens!{
+            "var" => [Span::new(0, 2, var())],
+            "var i = 1" => [
+                Span::new(0, 2, var()),
+                Span::new(4, 5, ident("i")),
+                Span::new(6, 7, op("=")),
+                Span::new(8, 9, int(1))
+            ]
         }
     }
 

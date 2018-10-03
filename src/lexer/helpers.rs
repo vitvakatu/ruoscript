@@ -29,6 +29,10 @@ pub fn fun() -> Token {
     Token::Fun
 }
 
+pub fn var() -> Token {
+    Token::Var
+}
+
 pub fn round_left() -> Token {
     Token::RoundLeft
 }
