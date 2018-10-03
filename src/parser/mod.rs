@@ -16,6 +16,7 @@ enum ExpectedToken {
     RoundRight,
     CurlyLeft,
     Operator,
+    OperatorEquals,
 }
 
 impl ::std::fmt::Debug for ExpectedToken {
@@ -28,6 +29,7 @@ impl ::std::fmt::Debug for ExpectedToken {
             ExpectedToken::RoundRight => write!(f, "')'"),
             ExpectedToken::CurlyLeft => write!(f, "'{{'"),
             ExpectedToken::Operator => write!(f, "operator"),
+            ExpectedToken::OperatorEquals => write!(f, "'='"),
         }
     }
 }
@@ -257,6 +259,34 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_variable_declaration(&mut self) -> Result<Box<Expr>, Error> {
+        // skip 'var'
+        self.next_token();
+        let variable_name = match self.next_token() {
+            Some(Span { inner: Token::Identifier(ref name), ..}) => name.clone(),
+            Some(other) => Err(ParserError::Expected(ExpectedToken::Identifier, other))?,
+            None => Err(ParserError::Eof)?
+        };
+
+        // skip '='
+        match self.next_token() {
+            Some(Span { inner: Token::Operator(ref op), ..}) if op == "=" => {},
+            Some(other) => Err(ParserError::Expected(ExpectedToken::OperatorEquals, other))?,
+            None => Err(ParserError::Eof)?
+        }
+
+        let init_expr = self.parse_expression()?;
+        Ok(var_declaration(variable_name, init_expr))
+    }
+
+    fn parse_statement(&mut self) -> Result<Box<Expr>, Error> {
+        debug!("parsing statement");
+        match self.peek_next_token() {
+            Some(Span { inner: Token::Var, .. }) => self.parse_variable_declaration(),
+            _ => self.parse_expression()
+        }
+    }
+
     fn parse_expression(&mut self) -> Result<Box<Expr>, Error> {
         debug!("parsing expression");
         let lhs = self.parse_primary()?;
@@ -354,7 +384,7 @@ impl<'a> Parser<'a> {
                             ..
                         }) => break body,
                         Some(_) => {
-                            body.push(self.parse_expression()?);
+                            body.push(self.parse_statement()?);
                         }
                         None => Err(ParserError::Eof)?,
                     }
@@ -492,10 +522,17 @@ mod tests {
     #[test]
     fn strings() {
         let _ = env_logger::try_init();
-        assert_parse!("''" => string("".into()));
-        assert_parse!("\"\"" => string("".into()));
-        assert_parse!("'some string'" => string("some string".into()));
-        assert_parse!("\"some string\"" => string("some string".into()));
+        assert_parse!("''" => string(""));
+        assert_parse!("\"\"" => string(""));
+        assert_parse!("'some string'" => string("some string"));
+        assert_parse!("\"some string\"" => string("some string"));
+    }
+
+    #[test]
+    fn var_declarations() {
+        let _ = env_logger::try_init();
+        assert_parse!("var i = 1" => var_declaration("i", int(1)));
+        assert_parse!("var string = \"string\"" => var_declaration("string", string("string")));
     }
 
     /*#[test]

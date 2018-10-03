@@ -15,6 +15,7 @@ pub enum Expr {
     Integer(i32),
     String(String),
     Variable(String),
+    VariableDeclaration(String, Box<Expr>),
     /// Function call (function name, arguments)
     Call(String, Vec<Box<Expr>>),
     /// Function prototype (function name, arguments)
@@ -31,12 +32,16 @@ pub mod helpers {
         Box::new(Expr::Integer(v))
     }
 
-    pub fn string(s: String) -> Box<Expr> {
-        Box::new(Expr::String(s))
+    pub fn string<S: Into<String>>(s: S) -> Box<Expr> {
+        Box::new(Expr::String(s.into()))
     }
 
     pub fn variable<S: Into<String>>(v: S) -> Box<Expr> {
         Box::new(Expr::Variable(v.into()))
+    }
+
+    pub fn var_declaration<S: Into<String>>(name: S, expr: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::VariableDeclaration(name.into(), expr))
     }
 
     pub fn call<S: Into<String>>(ident: S, args: Vec<Box<Expr>>) -> Box<Expr> {
