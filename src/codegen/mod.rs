@@ -177,7 +177,7 @@ impl Codegen for Expr {
 
                     function
                 }
-                _ => unimplemented!()
+                _ => unimplemented!(),
             }
         }
     }
