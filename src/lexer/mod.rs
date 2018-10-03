@@ -80,7 +80,7 @@ impl<'a> Lexer<'a> {
     fn skip_whitespaces(&mut self) {
         while let Some((_, c)) = self.input.peek().cloned() {
             if c.is_whitespace() {
-                debug!("lexer: skipped one whitespace character");
+                debug!("skipped one whitespace character");
                 self.input.next();
                 continue;
             } else {
@@ -94,7 +94,7 @@ impl<'a> Lexer<'a> {
         while let Some((i, c)) = self.input.peek().cloned() {
             self.prev_char = self.last_char;
             self.last_char = (i, c);
-            debug!("lexer: next char: {:?}", self.last_char);
+            debug!("next char: {:?}", self.last_char);
             return true;
         }
         return false;
@@ -107,7 +107,7 @@ impl<'a> Lexer<'a> {
             }
             self.prev_char = self.last_char;
             self.last_char = (i, c);
-            debug!("lexer: next char: {:?}", self.last_char);
+            debug!("next char: {:?}", self.last_char);
             return true;
         }
         return false;
@@ -157,11 +157,11 @@ impl<'a> Lexer<'a> {
 
     pub fn get_token(&mut self) -> Result<Option<Span<Token>>, Error> {
         if self.at_eof() {
-            debug!("lexer: Eof");
+            debug!("Eof");
             return Ok(Some(self.span_atomic(Token::Eof)));
         }
         if self.at_newline() {
-            debug!("lexer: Newline");
+            debug!("Newline");
             self.next_char();
             return Ok(Some(self.span_atomic(Token::NewLine)));
         }
@@ -171,13 +171,13 @@ impl<'a> Lexer<'a> {
 
         // identifier: [a-zA-z_][a-zA-Z0-9_]*
         if Self::is_first_identifier_char(self.last_char.1) {
-            debug!("lexer: identifier found: {:?}", self.last_char);
+            debug!("identifier found: {:?}", self.last_char);
             return self.tokenize_identifier().map(Some);
         }
 
         // Integer: [0-9]+
         if Self::is_first_integer_char(self.last_char.1) {
-            debug!("lexer: integer found: {:?}", self.last_char);
+            debug!("integer found: {:?}", self.last_char);
             return self.tokenize_integer().map(Some);
         }
 
@@ -198,13 +198,13 @@ impl<'a> Lexer<'a> {
 
         // Comment until end of line
         /*if self.last_char.1 == '#' {
-            debug!("lexer: comment found: {:?}", self.last_char);
+            debug!("comment found: {:?}", self.last_char);
             return Ok(self.skip_comment());
         }*/
 
         // operator: any non-alphanumeric-ascii symbols, except for [;.,'"{}[]()#]
         if Self::is_operator_char(self.last_char.1) {
-            debug!("lexer: operator found: {:?}", self.last_char);
+            debug!("operator found: {:?}", self.last_char);
             return self.tokenize_operator().map(Some);
         }
 
@@ -231,11 +231,11 @@ impl<'a> Lexer<'a> {
         number_str.push(self.last_char.1);
         while self.peek_next_char() {
             if Self::is_integer_char(self.last_char.1) {
-                debug!("lexer: next digit: {:?}", self.last_char);
+                debug!("next digit: {:?}", self.last_char);
                 number_str.push(self.last_char.1);
                 self.next_char();
             } else {
-                debug!("lexer: found non-digit: {:?}", self.last_char);
+                debug!("found non-digit: {:?}", self.last_char);
                 self.prev_char();
                 break;
             }
@@ -248,7 +248,7 @@ impl<'a> Lexer<'a> {
                 number_str.clone(),
             ))
         })?;
-        debug!("lexer: number parsed: {}", number);
+        debug!("number parsed: {}", number);
         return Ok(self.span(start_index, Token::Integer(number)));
     }
 
@@ -272,12 +272,12 @@ impl<'a> Lexer<'a> {
         identifier_str.push(self.last_char.1);
         while self.peek_next_char() {
             if Self::is_identifier_char(self.last_char.1) {
-                debug!("lexer: next identifier character: {:?}", self.last_char);
+                debug!("next identifier character: {:?}", self.last_char);
                 identifier_str.push(self.last_char.1);
                 self.next_char();
             } else {
                 debug!(
-                    "lexer: non-identifier character found: {:?}",
+                    "non-identifier character found: {:?}",
                     self.last_char
                 );
                 self.prev_char();
@@ -315,16 +315,16 @@ impl<'a> Lexer<'a> {
                 && !self.last_char.1.is_whitespace()
                 && !Self::is_parenthesis(self.last_char.1)
             {
-                debug!("lexer: next operator character: {:?}", self.last_char);
+                debug!("next operator character: {:?}", self.last_char);
                 self.next_char();
                 identifier_str.push(self.last_char.1);
             } else {
-                debug!("lexer: non-operator character found: {:?}", self.last_char);
+                debug!("non-operator character found: {:?}", self.last_char);
                 self.prev_char();
                 break;
             }
         }
-        debug!("lexer: parsed operator: {}", identifier_str);
+        debug!("parsed operator: {}", identifier_str);
         Ok(self.span(start_index, Token::Operator(identifier_str)))
     }
 
@@ -343,7 +343,7 @@ impl<'a> Lexer<'a> {
                 self.span(self.last_char.0, token),
             ))?
         } else {
-            debug!("lexer: parsed parenthesis: {:?}", token);
+            debug!("parsed parenthesis: {:?}", token);
             Ok(self.span(self.last_char.0, token))
         }
     }
