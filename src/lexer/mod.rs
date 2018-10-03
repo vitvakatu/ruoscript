@@ -45,6 +45,7 @@ pub enum Token {
     NewLine,
     Fun,
     Var,
+    Return,
     Extern,
     RoundLeft,
     RoundRight,
@@ -295,6 +296,10 @@ impl<'a> Lexer<'a> {
                 debug!("found var");
                 Ok(Span::new(start_index, self.last_char.0, Token::Var))
             }
+            "return" => {
+                debug!("found return");
+                Ok(Span::new(start_index, self.last_char.0, Token::Return))
+            }
             _ => {
                 debug!("parsed identifier: {}", identifier_str);
                 Ok(self.span(start_index, Token::Identifier(identifier_str)))
@@ -456,6 +461,14 @@ mod tests {
                 Span::new(6, 7, op("=")),
                 Span::new(8, 9, int(1))
             ]
+        }
+    }
+
+    #[test]
+    fn return_statement() {
+        assert_tokens!{
+            "return" => [Span::new(0, 5, ret())],
+            "return 1" => [Span::new(0, 5, ret()), Span::new(7, 8, int(1))]
         }
     }
 

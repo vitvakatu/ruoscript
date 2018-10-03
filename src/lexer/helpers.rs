@@ -33,6 +33,10 @@ pub fn var() -> Token {
     Token::Var
 }
 
+pub fn ret() -> Token {
+    Token::Return
+}
+
 pub fn round_left() -> Token {
     Token::RoundLeft
 }
