@@ -276,10 +276,7 @@ impl<'a> Lexer<'a> {
                 identifier_str.push(self.last_char.1);
                 self.next_char();
             } else {
-                debug!(
-                    "non-identifier character found: {:?}",
-                    self.last_char
-                );
+                debug!("non-identifier character found: {:?}", self.last_char);
                 self.prev_char();
                 break;
             }

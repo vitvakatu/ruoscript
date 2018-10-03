@@ -263,16 +263,23 @@ impl<'a> Parser<'a> {
         // skip 'var'
         self.next_token();
         let variable_name = match self.next_token() {
-            Some(Span { inner: Token::Identifier(ref name), ..}) => name.clone(),
+            Some(Span {
+                inner: Token::Identifier(ref name),
+                ..
+            }) => name.clone(),
             Some(other) => Err(ParserError::Expected(ExpectedToken::Identifier, other))?,
-            None => Err(ParserError::Eof)?
+            None => Err(ParserError::Eof)?,
         };
 
         // skip '='
         match self.next_token() {
-            Some(Span { inner: Token::Operator(ref op), ..}) if op == "=" => {},
+            Some(Span {
+                inner: Token::Operator(ref op),
+                ..
+            })
+                if op == "=" => {}
             Some(other) => Err(ParserError::Expected(ExpectedToken::OperatorEquals, other))?,
-            None => Err(ParserError::Eof)?
+            None => Err(ParserError::Eof)?,
         }
 
         let init_expr = self.parse_expression()?;
@@ -282,8 +289,10 @@ impl<'a> Parser<'a> {
     fn parse_statement(&mut self) -> Result<Box<Expr>, Error> {
         debug!("parsing statement");
         match self.peek_next_token() {
-            Some(Span { inner: Token::Var, .. }) => self.parse_variable_declaration(),
-            _ => self.parse_expression()
+            Some(Span {
+                inner: Token::Var, ..
+            }) => self.parse_variable_declaration(),
+            _ => self.parse_expression(),
         }
     }
 

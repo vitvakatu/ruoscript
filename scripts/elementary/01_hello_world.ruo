@@ -1,5 +1,6 @@
 extern put_char(c)
 
 fun main() {
-    put_char(48) + put_char(10)
+    var a = 2 * 3 + 4
+    var b = a - 5
 }

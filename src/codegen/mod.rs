@@ -1,6 +1,6 @@
 use llvm_sys::{self, core, prelude::*};
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 
 use parser::ast::{Expr, Prototype};
@@ -9,7 +9,8 @@ pub struct Context {
     pub context: LLVMContextRef,
     pub builder: LLVMBuilderRef,
     pub module: LLVMModuleRef,
-    pub named_values: HashMap<String, LLVMValueRef>,
+    pub local_arguments: HashMap<String, LLVMValueRef>,
+    pub local_variables: HashMap<String, LLVMValueRef>,
 }
 
 impl Context {
@@ -34,7 +35,8 @@ impl Context {
                 context,
                 module,
                 builder,
-                named_values: HashMap::new(),
+                local_arguments: HashMap::new(),
+                local_variables: HashMap::new(),
             }
         }
     }
@@ -64,7 +66,17 @@ impl Codegen for Expr {
                     let integer_type = core::LLVMInt32TypeInContext(context.context);
                     core::LLVMConstInt(integer_type, i as _, 0 as LLVMBool)
                 }
-                Expr::Variable(ref name) => context.named_values.get(name).cloned().unwrap(),
+                Expr::Variable(ref name) => {
+                    if let Some(variable) = context.local_variables.get(name) {
+                        core::LLVMBuildLoad(
+                            context.builder,
+                            variable.clone(),
+                            b"tmpload\0".as_ptr() as *const _,
+                        )
+                    } else {
+                        context.local_arguments.get(name).cloned().unwrap()
+                    }
+                }
                 Expr::Call(ref name, ref args) => {
                     if is_operator(&name) {
                         let lhs = args[0].codegen(context);
@@ -137,14 +149,16 @@ impl Codegen for Expr {
                         b"entry\0".as_ptr() as *const _,
                     );
                     core::LLVMPositionBuilderAtEnd(context.builder, basic_block);
-                    context.named_values.clear();
+                    context.local_arguments.clear();
                     let mut params = Vec::with_capacity(proto.args.len());
                     for i in 0..proto.args.len() {
                         let param = core::LLVMGetParam(function, i as _);
                         params.push(param);
                     }
                     for (arg, arg_name) in params.iter().zip(proto.args.iter()) {
-                        context.named_values.insert(arg_name.clone(), arg.clone());
+                        context
+                            .local_arguments
+                            .insert(arg_name.clone(), arg.clone());
                     }
 
                     let mut ret_value = None;
@@ -156,14 +170,13 @@ impl Codegen for Expr {
                         None => core::LLVMBuildRetVoid(context.builder),
                     };
 
-                    if llvm_sys::analysis::LLVMVerifyFunction(
+                    llvm_sys::analysis::LLVMVerifyFunction(
                         function,
-                        llvm_sys::analysis::LLVMVerifierFailureAction::LLVMPrintMessageAction,
-                    ) == true as _
-                    {
-                        debug!("Something goes wrong");
-                        //panic!()
-                    }
+                        llvm_sys::analysis::LLVMVerifierFailureAction::LLVMAbortProcessAction,
+                    );
+
+                    debug!("Before optimizations:");
+                    core::LLVMDumpValue(function);
 
                     let pass_manager = core::LLVMCreateFunctionPassManagerForModule(context.module);
                     use llvm_sys::transforms::scalar::*;
@@ -177,10 +190,23 @@ impl Codegen for Expr {
 
                     function
                 }
+                Expr::VariableDeclaration(ref name, ref expr) => {
+                    store_variable(&name, &*expr, context);
+                    Expr::Integer(0).codegen(context)
+                }
                 _ => unimplemented!(),
             }
         }
     }
+}
+
+unsafe fn store_variable(name: &str, expr: &Expr, context: &mut Context) {
+    let integer_type = core::LLVMInt32TypeInContext(context.context);
+    let c_name = CString::new(name.as_bytes()).unwrap();
+    let alloca = core::LLVMBuildAlloca(context.builder, integer_type, c_name.as_ptr());
+    let init_expr = expr.codegen(context);
+    core::LLVMBuildStore(context.builder, init_expr, alloca);
+    context.local_variables.insert(name.to_string(), alloca);
 }
 
 impl Codegen for Prototype {
