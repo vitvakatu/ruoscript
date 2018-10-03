@@ -11,6 +11,7 @@ pub struct Context {
     pub module: LLVMModuleRef,
     pub local_arguments: HashMap<String, LLVMValueRef>,
     pub local_variables: HashMap<String, LLVMValueRef>,
+    pub has_return_statement: bool,
 }
 
 impl Context {
@@ -37,6 +38,7 @@ impl Context {
                 builder,
                 local_arguments: HashMap::new(),
                 local_variables: HashMap::new(),
+                has_return_statement: false,
             }
         }
     }
@@ -54,35 +56,35 @@ impl Context {
 }
 
 pub trait Codegen {
-    fn codegen(&self, context: &mut Context) -> LLVMValueRef;
+    fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef>;
 }
 
 impl Codegen for Expr {
-    fn codegen(&self, context: &mut Context) -> LLVMValueRef {
+    fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef> {
         debug!("codegen: {:?}", self);
         unsafe {
             match *self {
                 Expr::Integer(i) => {
                     let integer_type = core::LLVMInt32TypeInContext(context.context);
-                    core::LLVMConstInt(integer_type, i as _, 0 as LLVMBool)
+                    Some(core::LLVMConstInt(integer_type, i as _, 0 as LLVMBool))
                 }
                 Expr::Variable(ref name) => {
                     if let Some(variable) = context.local_variables.get(name) {
-                        core::LLVMBuildLoad(
+                        Some(core::LLVMBuildLoad(
                             context.builder,
                             variable.clone(),
                             b"tmpload\0".as_ptr() as *const _,
-                        )
+                        ))
                     } else {
-                        context.local_arguments.get(name).cloned().unwrap()
+                        context.local_arguments.get(name).cloned()
                     }
                 }
                 Expr::Call(ref name, ref args) => {
                     if is_operator(&name) {
-                        let lhs = args[0].codegen(context);
-                        let rhs = args[1].codegen(context);
+                        let lhs = args[0].codegen(context).unwrap();
+                        let rhs = args[1].codegen(context).unwrap();
 
-                        match name.as_str() {
+                        Some(match name.as_str() {
                             "+" => core::LLVMBuildAdd(
                                 context.builder,
                                 lhs,
@@ -108,7 +110,7 @@ impl Codegen for Expr {
                                 b"divtmp\0".as_ptr() as *const _,
                             ),
                             _ => unimplemented!(),
-                        }
+                        })
                     } else {
                         let function_name = CString::new(name.as_bytes()).unwrap();
                         let function =
@@ -121,7 +123,7 @@ impl Codegen for Expr {
                             panic!()
                         }
                         let mut arguments: Vec<_> =
-                            args.iter().map(|a| a.codegen(context)).collect();
+                            args.iter().map(|a| a.codegen(context).unwrap()).collect();
                         let res = core::LLVMBuildCall(
                             context.builder,
                             function,
@@ -129,16 +131,17 @@ impl Codegen for Expr {
                             arguments.len() as _,
                             b"calltmp\0".as_ptr() as *const _,
                         );
-                        res
+                        Some(res)
                     }
                 }
                 Expr::Prototype(ref proto) => proto.codegen(context),
                 Expr::Function(ref proto, ref body) => {
+                    context.has_return_statement = false;
                     let function_name = CString::new(proto.name.clone()).unwrap();
                     let mut function =
                         core::LLVMGetNamedFunction(context.module, function_name.as_ptr());
                     if function.is_null() {
-                        function = Expr::Prototype(proto.clone()).codegen(context);
+                        function = Expr::Prototype(proto.clone()).codegen(context).unwrap();
                     }
                     if function.is_null() {
                         panic!()
@@ -163,20 +166,25 @@ impl Codegen for Expr {
 
                     let mut ret_value = None;
                     for expr in &body.exprs {
-                        ret_value = Some(expr.codegen(context));
+                        ret_value = expr.codegen(context);
                     }
-                    match ret_value {
-                        Some(value) => core::LLVMBuildRet(context.builder, value),
-                        None => core::LLVMBuildRetVoid(context.builder),
+                    match (ret_value, context.has_return_statement) {
+                        (Some(value), false) => {
+                            core::LLVMBuildRet(context.builder, value);
+                        },
+                        (None, false) => {
+                            core::LLVMBuildRetVoid(context.builder);
+                        },
+                        _ => {}
                     };
+
+                    debug!("Before optimizations:");
+                    core::LLVMDumpValue(function);
 
                     llvm_sys::analysis::LLVMVerifyFunction(
                         function,
                         llvm_sys::analysis::LLVMVerifierFailureAction::LLVMAbortProcessAction,
                     );
-
-                    debug!("Before optimizations:");
-                    core::LLVMDumpValue(function);
 
                     let pass_manager = core::LLVMCreateFunctionPassManagerForModule(context.module);
                     use llvm_sys::transforms::scalar::*;
@@ -188,11 +196,17 @@ impl Codegen for Expr {
                     core::LLVMInitializeFunctionPassManager(pass_manager);
                     core::LLVMRunFunctionPassManager(pass_manager, function);
 
-                    function
+                    Some(function)
                 }
                 Expr::VariableDeclaration(ref name, ref expr) => {
                     store_variable(&name, &*expr, context);
-                    Expr::Integer(0).codegen(context)
+                    None
+                }
+                Expr::Return(ref expr) => {
+                    let value = expr.codegen(context).unwrap();
+                    core::LLVMBuildRet(context.builder, value);
+                    context.has_return_statement = true;
+                    None
                 }
                 _ => unimplemented!(),
             }
@@ -204,13 +218,13 @@ unsafe fn store_variable(name: &str, expr: &Expr, context: &mut Context) {
     let integer_type = core::LLVMInt32TypeInContext(context.context);
     let c_name = CString::new(name.as_bytes()).unwrap();
     let alloca = core::LLVMBuildAlloca(context.builder, integer_type, c_name.as_ptr());
-    let init_expr = expr.codegen(context);
+    let init_expr = expr.codegen(context).unwrap();
     core::LLVMBuildStore(context.builder, init_expr, alloca);
     context.local_variables.insert(name.to_string(), alloca);
 }
 
 impl Codegen for Prototype {
-    fn codegen(&self, context: &mut Context) -> LLVMValueRef {
+    fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef> {
         unsafe {
             let mut argument_types: Vec<_> = (0..self.args.len())
                 .map(|_| core::LLVMInt32TypeInContext(context.context))
@@ -225,7 +239,7 @@ impl Codegen for Prototype {
             let function =
                 core::LLVMAddFunction(context.module, function_name.as_ptr(), function_type);
             core::LLVMSetLinkage(function, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
-            function
+            Some(function)
         }
     }
 }

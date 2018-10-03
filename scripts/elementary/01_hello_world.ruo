@@ -3,4 +3,5 @@ extern put_char(c)
 fun main() {
     var a = 2 * 3 + 4
     var b = a - 5
+    return b
 }
