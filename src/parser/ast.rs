@@ -22,6 +22,7 @@ pub enum Expr {
     Prototype(Prototype),
     /// Function itself (prototype + body)
     Function(Prototype, Block),
+    Return(Box<Expr>),
 }
 
 pub mod helpers {
@@ -42,6 +43,10 @@ pub mod helpers {
 
     pub fn var_declaration<S: Into<String>>(name: S, expr: Box<Expr>) -> Box<Expr> {
         Box::new(Expr::VariableDeclaration(name.into(), expr))
+    }
+
+    pub fn ret(expr: Box<Expr>) -> Box<Expr> {
+        Box::new(Expr::Return(expr))
     }
 
     pub fn call<S: Into<String>>(ident: S, args: Vec<Box<Expr>>) -> Box<Expr> {

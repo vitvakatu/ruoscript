@@ -286,12 +286,23 @@ impl<'a> Parser<'a> {
         Ok(var_declaration(variable_name, init_expr))
     }
 
+    fn parse_return_statement(&mut self) -> Result<Box<Expr>, Error> {
+        // skip 'return'
+        self.next_token();
+        let expr = self.parse_expression()?;
+        Ok(ret(expr))
+    }
+
     fn parse_statement(&mut self) -> Result<Box<Expr>, Error> {
         debug!("parsing statement");
         match self.peek_next_token() {
             Some(Span {
                 inner: Token::Var, ..
             }) => self.parse_variable_declaration(),
+            Some(Span {
+                inner: Token::Return,
+                ..
+            }) => self.parse_return_statement(),
             _ => self.parse_expression(),
         }
     }
@@ -542,6 +553,13 @@ mod tests {
         let _ = env_logger::try_init();
         assert_parse!("var i = 1" => var_declaration("i", int(1)));
         assert_parse!("var string = \"string\"" => var_declaration("string", string("string")));
+    }
+
+    #[test]
+    fn return_statement() {
+        let _ = env_logger::try_init();
+        assert_parse!("return 1" => ret(int(1)));
+        assert_parse!("return 1 + 1" => ret(add(int(1), int(1))));
     }
 
     /*#[test]
