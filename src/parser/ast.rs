@@ -52,6 +52,10 @@ pub mod helpers {
         Box::new(Expr::Variable(v.into()))
     }
 
+    pub fn module(statements: Vec<TopLevelStatement>) -> Module {
+        Module(statements)
+    }
+
     pub fn var_declaration<S: Into<String>>(name: S, expr: Box<Expr>) -> Statement {
         Statement::VariableDeclaration(name.into(), expr)
     }
@@ -89,6 +93,10 @@ pub mod helpers {
 
     pub fn block_void(statements: Vec<Statement>) -> Block {
         Block::Void(statements)
+    }
+
+    pub fn block_expr(expr: Box<Expr>) -> Block {
+        Block::NonVoid(vec![], expr)
     }
 
     pub fn add(l: Box<Expr>, r: Box<Expr>) -> Box<Expr> {

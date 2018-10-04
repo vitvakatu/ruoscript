@@ -492,32 +492,32 @@ mod tests {
     use super::*;
     use failure::Error;
     use lexer::Lexer;
-    use parser::ast::{helpers::*, Block, Expr, Prototype};
+    use parser::ast::{helpers::*, Block, Expr, Prototype, TopLevelStatement};
 
-    fn parse_as_top_level(input: &str) -> Result<Vec<Box<Expr>>, Error> {
+    fn parse_as_top_level(input: &str) -> Result<Module, Error> {
         let mut lexer = Lexer::new(input.char_indices());
         let tokens = lexer.get_tokens()?;
         let mut parser = Parser::new(tokens.iter());
         parser.parse()
     }
 
-    fn parse_as_func_body(input: &str) -> Result<Vec<Box<Expr>>, Error> {
+    fn parse_as_func_body(input: &str) -> Result<Module, Error> {
         let input = "fun anon_func() {".to_string() + input + "}";
         parse_as_top_level(&input)
     }
 
     macro_rules! assert_parse {
-        ($program:expr => $($e:expr),*) => {
-            let parsed = parse_as_func_body($program).unwrap();
+        ($program:expr => $block:expr) => {
+            let Module(parsed) = parse_as_func_body($program).unwrap();
             assert_eq!(parsed.len(), 1);
-            match *parsed[0] {
-                Expr::Function(Prototype {
+            match parsed[0] {
+                TopLevelStatement::Function(Prototype {
                     ref name,
                     ref args,
-                }, Block { ref exprs }) => {
+                }, ref block) => {
                     assert_eq!(name, "anon_func");
                     assert_eq!(args.len(), 0);
-                    assert_eq!(exprs, &vec![$($e),*]);
+                    assert_eq!(*block, $block);
                 }
                 _ => panic!()
             }
@@ -525,49 +525,54 @@ mod tests {
     }
 
     macro_rules! assert_parse_top_level {
-        ($program:expr => $($e:expr),*) => {
-            assert_eq!(parse_as_top_level($program).unwrap(), vec![$($e),*]);
+        ($program:expr => $module:expr) => {
+            assert_eq!(parse_as_top_level($program).unwrap(), $module);
         }
     }
 
     #[test]
     fn empty() {
         let _ = env_logger::try_init();
-        assert_parse_top_level!("" => );
+        assert_parse_top_level!("" => module(vec![]));
         // empty function body
-        assert_parse!("" => );
+        assert_parse!("" => block_void(vec![]));
     }
 
     #[test]
     fn integers() {
         let _ = env_logger::try_init();
-        assert_parse!("123" => int(123));
-        assert_parse!("0" => int(0));
-        assert_parse!("1" => int(1));
-        assert_parse!("3_000_000" => int(3_000_000));
+        assert_parse!("123" => block_expr(int(123)));
+        assert_parse!("0" => block_expr(int(0)));
+        assert_parse!("1" => block_expr(int(1)));
+        assert_parse!("3_000_000" => block_expr(int(3_000_000)));
+        assert_parse!("3000000" => block_expr(int(3_000_000)));
     }
 
     #[test]
     fn strings() {
         let _ = env_logger::try_init();
-        assert_parse!("''" => string(""));
-        assert_parse!("\"\"" => string(""));
-        assert_parse!("'some string'" => string("some string"));
-        assert_parse!("\"some string\"" => string("some string"));
+        assert_parse!("''" => block_expr(string("")));
+        assert_parse!("\"\"" => block_expr(string("")));
+        assert_parse!("'some string'" => block_expr(string("some string")));
+        assert_parse!("\"some string\"" => block_expr(string("some string")));
     }
 
     #[test]
     fn var_declarations() {
         let _ = env_logger::try_init();
-        assert_parse!("var i = 1" => var_declaration("i", int(1)));
-        assert_parse!("var string = \"string\"" => var_declaration("string", string("string")));
+        assert_parse!("var i = 1" => block_void(vec![
+            var_declaration("i", int(1))
+        ]));
+        assert_parse!("var string = \"string\"" => block_void(vec![
+            var_declaration("string", string("string"))
+        ]));
     }
 
     #[test]
     fn return_statement() {
         let _ = env_logger::try_init();
-        assert_parse!("return 1" => ret(int(1)));
-        assert_parse!("return 1 + 1" => ret(add(int(1), int(1))));
+        assert_parse!("return 1" => block_void(vec![ret(int(1))]));
+        assert_parse!("return 1 + 1" => block_void(vec![ret(add(int(1), int(1)))]));
     }
 
     /*#[test]
@@ -590,47 +595,34 @@ mod tests {
     #[test]
     fn identifiers() {
         let _ = env_logger::try_init();
-        assert_parse!("a" => variable("a"));
-        assert_parse!("abc" => variable("abc"));
-        assert_parse!("a123" => variable("a123"));
-        assert_parse!("_213" => variable("_213"));
-        assert_parse!("_" => variable("_"));
+        assert_parse!("a" => block_expr(variable("a")));
+        assert_parse!("abc" => block_expr(variable("abc")));
+        assert_parse!("a123" => block_expr(variable("a123")));
+        assert_parse!("_213" => block_expr(variable("_213")));
+        assert_parse!("_" => block_expr(variable("_")));
     }
-
-    /*#[test]
-    fn strings() {
-        let _ = env_logger::try_init();
-        assert_parse!("\"\"" => string(""));
-        assert_parse!("\"Hello\"" => string("Hello"));
-        assert_parse!("\"∮ E⋅da = Q,  n → ∞, ∑ f(i) = ∏ g(i)\"" => string("∮ E⋅da = Q,  n → ∞, ∑ f(i) = ∏ g(i)"));
-    }*/
-
-    /*#[test]
-    fn unary_exprs() {
-        let _ = env_logger::try_init();
-        assert_parse!("- a" => fun_call("-", vec![identifier("a")]));
-    }*/
 
     #[test]
     fn binary_exprs() {
         let _ = env_logger::try_init();
-        assert_parse!("1 + 2" => add(int(1), int(2)));
-        assert_parse!("1+2" => add(int(1), int(2)));
-        assert_parse!("1 + a" => add(int(1), variable("a")));
-        assert_parse!("a + 2" => add(variable("a"), int(2)));
-        assert_parse!("a + b" => add(variable("a"), variable("b")));
-        assert_parse!("a+b" => add(variable("a"), variable("b")));
-        assert_parse!("1 - 2" => sub(int(1), int(2)));
-        assert_parse!("(1 - 2)" => sub(int(1), int(2)));
-        assert_parse!("1 + 3 * 4" => add(int(1), mul(int(3), int(4))));
-        assert_parse!("1 * 3 + 4" => add(mul(int(1), int(3)), int(4)));
-        assert_parse!("1*3+4" => add(mul(int(1), int(3)), int(4)));
+        assert_parse!("1 + 2" => block_expr(add(int(1), int(2))));
+        assert_parse!("1+2" => block_expr(add(int(1), int(2))));
+        assert_parse!("1 + a" => block_expr(add(int(1), variable("a"))));
+        assert_parse!("a + 2" => block_expr(add(variable("a"), int(2))));
+        assert_parse!("a + b" => block_expr(add(variable("a"), variable("b"))));
+        assert_parse!("a+b" => block_expr(add(variable("a"), variable("b"))));
+        assert_parse!("1 - 2" => block_expr(sub(int(1), int(2))));
+        assert_parse!("(1 - 2)" => block_expr(sub(int(1), int(2))));
+        assert_parse!("1 + 3 * 4" => block_expr(add(int(1), mul(int(3), int(4)))));
+        assert_parse!("1 * 3 + 4" => block_expr(add(mul(int(1), int(3)), int(4))));
+        assert_parse!("1*3+4" => block_expr(add(mul(int(1), int(3)), int(4))));
         //        assert_parse!("1 - - b" => sub(int(1), sub("-", vec![variable("b")])));
-        assert_parse!("3 * (8 - 5)" => mul(int(3), sub(int(8), int(5))));
-        assert_parse!("3 - (8 * 5)" => sub(int(3), mul(int(8), int(5))));
-        assert_parse!("3-(8*5)" => sub(int(3), mul(int(8), int(5))));
-        assert_parse!("3 - 8 * 5" => sub(int(3), mul(int(8), int(5))));
-        assert_parse!("2 ^ 3 ^ 4" => pow(int(2), pow(int(3), int(4))));
-        assert_parse!("a^b^c" => pow(variable("a"), pow(variable("b"), variable("c"))));
+        assert_parse!("3 * (8 - 5)" => block_expr(mul(int(3), sub(int(8), int(5)))));
+        assert_parse!("3 - (8 * 5)" => block_expr(sub(int(3), mul(int(8), int(5)))));
+        assert_parse!("3-(8*5)" => block_expr(sub(int(3), mul(int(8), int(5)))));
+        assert_parse!("3 - 8 * 5" => block_expr(sub(int(3), mul(int(8), int(5)))));
+        assert_parse!("2 ^ 3 ^ 4" => block_expr(pow(int(2), pow(int(3), int(4)))));
+        assert_parse!("a^b^c" => block_expr(pow(variable("a"), pow(variable("b"), variable("c")))));
     }
 }
+
