@@ -1,6 +1,6 @@
 pub mod ast;
 
-use self::ast::{helpers::*, Expr, Prototype};
+use self::ast::{helpers::*, Block, Expr, Module, Prototype, Statement, TopLevelStatement};
 use super::lexer::{Span, Token};
 
 use failure::Error;
@@ -259,7 +259,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_variable_declaration(&mut self) -> Result<Box<Expr>, Error> {
+    fn parse_variable_declaration(&mut self) -> Result<Statement, Error> {
         // skip 'var'
         self.next_token();
         let variable_name = match self.next_token() {
@@ -283,17 +283,17 @@ impl<'a> Parser<'a> {
         }
 
         let init_expr = self.parse_expression()?;
-        Ok(var_declaration(variable_name, init_expr))
+        Ok(Statement::VariableDeclaration(variable_name, init_expr))
     }
 
-    fn parse_return_statement(&mut self) -> Result<Box<Expr>, Error> {
+    fn parse_return_statement(&mut self) -> Result<Statement, Error> {
         // skip 'return'
         self.next_token();
         let expr = self.parse_expression()?;
-        Ok(ret(expr))
+        Ok(Statement::Return(expr))
     }
 
-    fn parse_statement(&mut self) -> Result<Box<Expr>, Error> {
+    fn parse_statement(&mut self) -> Result<Statement, Error> {
         debug!("parsing statement");
         match self.peek_next_token() {
             Some(Span {
@@ -303,7 +303,7 @@ impl<'a> Parser<'a> {
                 inner: Token::Return,
                 ..
             }) => self.parse_return_statement(),
-            _ => self.parse_expression(),
+            _ => self.parse_expression().map(Statement::Expr),
         }
     }
 
@@ -379,7 +379,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_definition(&mut self) -> Result<Box<Expr>, Error> {
+    fn parse_definition(&mut self) -> Result<TopLevelStatement, Error> {
         debug!("parsing definition");
         // skip 'fun'
         let _ = self.next_token();
@@ -395,59 +395,67 @@ impl<'a> Parser<'a> {
                 inner: Token::CurlyLeft,
                 ..
             }) => {
-                let mut body = Vec::new();
-                let body = loop {
+                let mut statements = Vec::new();
+                let mut statements = loop {
                     self.skip_newlines();
                     match self.peek_next_token() {
                         Some(Span {
                             inner: Token::CurlyRight,
                             ..
-                        }) => break body,
+                        }) => break statements,
                         Some(_) => {
-                            body.push(self.parse_statement()?);
+                            statements.push(self.parse_statement()?);
                         }
                         None => Err(ParserError::Eof)?,
                     }
                 };
                 self.next_token();
-                Ok(function(proto, body))
+                // replace last statement with return
+                let last_statement = statements.pop();
+                let block = match last_statement {
+                    Some(Statement::Expr(expr)) => Block::NonVoid(statements, expr),
+                    Some(other) => {
+                        statements.push(other);
+                        Block::Void(statements)
+                    }
+                    None => Block::Void(statements),
+                };
+                Ok(TopLevelStatement::Function(proto, block))
             }
             Some(other) => Err(ParserError::Expected(ExpectedToken::CurlyLeft, other))?,
             None => Err(ParserError::Eof)?,
         }
     }
 
-    fn parse_extern(&mut self) -> Result<Prototype, Error> {
+    fn parse_extern(&mut self) -> Result<TopLevelStatement, Error> {
         debug!("parsing extern");
         // skip 'extern'
         let _ = self.next_token();
-        self.parse_prototype()
+        self.parse_prototype().map(TopLevelStatement::Prototype)
     }
 
-    pub fn parse(&mut self) -> Result<Vec<Box<Expr>>, Error> {
-        let mut exprs = Vec::new();
+    pub fn parse(&mut self) -> Result<Module, Error> {
+        let mut statements = Vec::new();
         while let Some(token) = self.peek_next_token() {
             match token.inner {
-                Token::Eof => return Ok(exprs),
+                Token::Eof => return Ok(Module(statements)),
                 Token::NewLine => {
                     self.next_token();
                 }
                 Token::Fun => {
                     let expr = self.parse_definition()?;
                     debug!("Parsed definition: {:?}", expr);
-                    exprs.push(expr);
+                    statements.push(expr);
                 }
                 Token::Extern => {
-                    let expr = self
-                        .parse_extern()
-                        .map(|proto| prototype(proto.name, proto.args))?;
-                    debug!("Parsed extern: {:?}", expr);
-                    exprs.push(expr);
+                    let statement = self.parse_extern()?;
+                    debug!("Parsed extern: {:?}", statement);
+                    statements.push(statement);
                 }
                 _ => Err(ParserError::UnexpectedTopLevel(token))?,
             }
         }
-        Ok(exprs)
+        Ok(Module(statements))
     }
 
     fn get_token_precedence(&mut self) -> Result<u32, Error> {

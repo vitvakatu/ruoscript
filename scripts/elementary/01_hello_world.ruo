@@ -1,7 +1,12 @@
 extern put_char(c)
 
+fun sum(a, b) {
+   a + b
+}
+
 fun main() {
-    var a = 2 * 3 + 4
-    var b = a - 5
-    return b
+    var a = 5
+    var b = 10
+    var c = sum(a, b)
+    return c
 }

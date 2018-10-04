@@ -3,7 +3,7 @@ use llvm_sys::{self, core, prelude::*};
 use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 
-use parser::ast::{Expr, Prototype};
+use parser::ast::{Block, Expr, Module, Prototype, Statement, TopLevelStatement};
 
 pub struct Context {
     pub context: LLVMContextRef,
@@ -43,9 +43,9 @@ impl Context {
         }
     }
 
-    pub fn codegen_module(&mut self, exprs: Vec<Box<Expr>>) {
-        for expr in &exprs {
-            expr.codegen(self);
+    pub unsafe fn codegen_module(&mut self, module: Module) {
+        for statement in &module.0 {
+            statement.codegen(self);
         }
 
         let string = unsafe {
@@ -56,11 +56,112 @@ impl Context {
 }
 
 pub trait Codegen {
-    fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef>;
+    unsafe fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef>;
+}
+
+impl Codegen for TopLevelStatement {
+    unsafe fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef> {
+        match *self {
+            TopLevelStatement::Prototype(ref proto) => proto.codegen(context),
+            TopLevelStatement::Function(ref proto, ref block) => {
+                context.has_return_statement = false;
+                let function_name = CString::new(proto.name.clone()).unwrap();
+                let mut function =
+                    core::LLVMGetNamedFunction(context.module, function_name.as_ptr());
+                if function.is_null() {
+                    function = proto.codegen(context).unwrap();
+                }
+                if function.is_null() {
+                    panic!()
+                }
+                let basic_block = core::LLVMAppendBasicBlockInContext(
+                    context.context,
+                    function,
+                    b"entry\0".as_ptr() as *const _,
+                );
+                core::LLVMPositionBuilderAtEnd(context.builder, basic_block);
+                context.local_arguments.clear();
+                let mut params = Vec::with_capacity(proto.args.len());
+                for i in 0..proto.args.len() {
+                    let param = core::LLVMGetParam(function, i as _);
+                    params.push(param);
+                }
+                for (arg, arg_name) in params.iter().zip(proto.args.iter()) {
+                    context
+                        .local_arguments
+                        .insert(arg_name.clone(), arg.clone());
+                }
+
+                match *block {
+                    Block::Void(ref statements) => {
+                        let mut need_return = true;
+                        for statement in statements.iter() {
+                            if let Statement::Return(_) = *statement {
+                                need_return = false;
+                            }
+                            // FIXME: error on expr
+                            let _ = statement.codegen(context);
+                        }
+                        if need_return {
+                            // FIXME: return void when types come
+                            let value = Expr::Integer(0).codegen(context).unwrap();
+                            core::LLVMBuildRet(context.builder, value);
+                        }
+                    }
+                    Block::NonVoid(ref statements, ref expr) => {
+                        for statement in statements.iter() {
+                            // FIXME: error on expr
+                            let _ = statement.codegen(context);
+                        }
+                        let value = expr.codegen(context).unwrap();
+                        core::LLVMBuildRet(context.builder, value);
+                    }
+                }
+
+                debug!("Before optimizations:");
+                core::LLVMDumpValue(function);
+
+                llvm_sys::analysis::LLVMVerifyFunction(
+                    function,
+                    llvm_sys::analysis::LLVMVerifierFailureAction::LLVMAbortProcessAction,
+                );
+
+                let pass_manager = core::LLVMCreateFunctionPassManagerForModule(context.module);
+                use llvm_sys::transforms::scalar::*;
+                LLVMAddBasicAliasAnalysisPass(pass_manager);
+                LLVMAddInstructionCombiningPass(pass_manager);
+                LLVMAddReassociatePass(pass_manager);
+                LLVMAddGVNPass(pass_manager);
+                LLVMAddCFGSimplificationPass(pass_manager);
+                core::LLVMInitializeFunctionPassManager(pass_manager);
+                core::LLVMRunFunctionPassManager(pass_manager, function);
+
+                Some(function)
+            }
+        }
+    }
+}
+
+impl Codegen for Statement {
+    unsafe fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef> {
+        match *self {
+            Statement::Expr(ref expr) => expr.codegen(context),
+            Statement::VariableDeclaration(ref name, ref expr) => {
+                store_variable(&name, &*expr, context);
+                None
+            }
+            Statement::Return(ref expr) => {
+                let value = expr.codegen(context).unwrap();
+                core::LLVMBuildRet(context.builder, value);
+                context.has_return_statement = true;
+                None
+            }
+        }
+    }
 }
 
 impl Codegen for Expr {
-    fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef> {
+    unsafe fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef> {
         debug!("codegen: {:?}", self);
         unsafe {
             match *self {
@@ -134,80 +235,6 @@ impl Codegen for Expr {
                         Some(res)
                     }
                 }
-                Expr::Prototype(ref proto) => proto.codegen(context),
-                Expr::Function(ref proto, ref body) => {
-                    context.has_return_statement = false;
-                    let function_name = CString::new(proto.name.clone()).unwrap();
-                    let mut function =
-                        core::LLVMGetNamedFunction(context.module, function_name.as_ptr());
-                    if function.is_null() {
-                        function = Expr::Prototype(proto.clone()).codegen(context).unwrap();
-                    }
-                    if function.is_null() {
-                        panic!()
-                    }
-                    let basic_block = core::LLVMAppendBasicBlockInContext(
-                        context.context,
-                        function,
-                        b"entry\0".as_ptr() as *const _,
-                    );
-                    core::LLVMPositionBuilderAtEnd(context.builder, basic_block);
-                    context.local_arguments.clear();
-                    let mut params = Vec::with_capacity(proto.args.len());
-                    for i in 0..proto.args.len() {
-                        let param = core::LLVMGetParam(function, i as _);
-                        params.push(param);
-                    }
-                    for (arg, arg_name) in params.iter().zip(proto.args.iter()) {
-                        context
-                            .local_arguments
-                            .insert(arg_name.clone(), arg.clone());
-                    }
-
-                    let mut ret_value = None;
-                    for expr in &body.exprs {
-                        ret_value = expr.codegen(context);
-                    }
-                    match (ret_value, context.has_return_statement) {
-                        (Some(value), false) => {
-                            core::LLVMBuildRet(context.builder, value);
-                        },
-                        (None, false) => {
-                            core::LLVMBuildRetVoid(context.builder);
-                        },
-                        _ => {}
-                    };
-
-                    debug!("Before optimizations:");
-                    core::LLVMDumpValue(function);
-
-                    llvm_sys::analysis::LLVMVerifyFunction(
-                        function,
-                        llvm_sys::analysis::LLVMVerifierFailureAction::LLVMAbortProcessAction,
-                    );
-
-                    let pass_manager = core::LLVMCreateFunctionPassManagerForModule(context.module);
-                    use llvm_sys::transforms::scalar::*;
-                    LLVMAddBasicAliasAnalysisPass(pass_manager);
-                    LLVMAddInstructionCombiningPass(pass_manager);
-                    LLVMAddReassociatePass(pass_manager);
-                    LLVMAddGVNPass(pass_manager);
-                    LLVMAddCFGSimplificationPass(pass_manager);
-                    core::LLVMInitializeFunctionPassManager(pass_manager);
-                    core::LLVMRunFunctionPassManager(pass_manager, function);
-
-                    Some(function)
-                }
-                Expr::VariableDeclaration(ref name, ref expr) => {
-                    store_variable(&name, &*expr, context);
-                    None
-                }
-                Expr::Return(ref expr) => {
-                    let value = expr.codegen(context).unwrap();
-                    core::LLVMBuildRet(context.builder, value);
-                    context.has_return_statement = true;
-                    None
-                }
                 _ => unimplemented!(),
             }
         }
@@ -224,7 +251,7 @@ unsafe fn store_variable(name: &str, expr: &Expr, context: &mut Context) {
 }
 
 impl Codegen for Prototype {
-    fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef> {
+    unsafe fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef> {
         unsafe {
             let mut argument_types: Vec<_> = (0..self.args.len())
                 .map(|_| core::LLVMInt32TypeInContext(context.context))

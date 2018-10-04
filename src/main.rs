@@ -47,7 +47,9 @@ fn main() -> io::Result<()> {
     let exprs = parser.parse().unwrap();
 
     let mut context = codegen::Context::new();
-    context.codegen_module(exprs);
+    unsafe {
+        let _ = context.codegen_module(exprs);
+    }
 
     let executor = executor::Executor::new(&mut context);
 
