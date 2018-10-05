@@ -1,11 +1,8 @@
-extern put_char(c: Int): Int
-
 fun sum(a: Int, b: Int): Int {
-   a + b
+    return a + b
 }
 
 fun main(): Void {
-    var a: Int = 5
-    var b: Int = 10
-    var c: Int = sum(a, b)
+    var a: Int = 1
+    var b: Int = a
 }

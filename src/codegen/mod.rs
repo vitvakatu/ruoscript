@@ -4,14 +4,20 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 
 use parser::ast::{Block, Expr, Module, Prototype, Statement, TopLevelStatement};
-use types::TypedExpr;
+use types::{TypedExpr, TYPE_ANY, TYPE_INTEGER, TYPE_VOID};
+
+mod any;
+#[macro_use]
+mod types;
+
+use self::any::Any;
+use self::types::*;
 
 pub struct Context {
     pub context: LLVMContextRef,
     pub builder: LLVMBuilderRef,
     pub module: LLVMModuleRef,
-    pub local_arguments: HashMap<String, LLVMValueRef>,
-    pub local_variables: HashMap<String, LLVMValueRef>,
+    pub local_variables: HashMap<String, (LLVMValueRef, String)>,
     pub has_return_statement: bool,
 }
 
@@ -37,7 +43,6 @@ impl Context {
                 context,
                 module,
                 builder,
-                local_arguments: HashMap::new(),
                 local_variables: HashMap::new(),
                 has_return_statement: false,
             }
@@ -45,6 +50,7 @@ impl Context {
     }
 
     pub unsafe fn codegen_module(&mut self, module: Module) {
+        Any::int_to_any(self);
         for statement in &module.0 {
             statement.codegen(self);
         }
@@ -81,16 +87,17 @@ impl Codegen for TopLevelStatement {
                     b"entry\0".as_ptr() as *const _,
                 );
                 core::LLVMPositionBuilderAtEnd(context.builder, basic_block);
-                context.local_arguments.clear();
+                context.local_variables.clear();
                 let mut params = Vec::with_capacity(proto.args.len());
                 for i in 0..proto.args.len() {
                     let param = core::LLVMGetParam(function, i as _);
                     params.push(param);
                 }
                 for (arg, arg_name) in params.iter().zip(proto.args.iter()) {
+                    let allocated_value = core::LLVMBuildAlloca(ctx.builder, )
                     context
-                        .local_arguments
-                        .insert(arg_name.clone(), arg.clone());
+                        .local_variables
+                        .insert(arg_name.clone(), (arg.clone(), TYPE_ANY.to_string()));
                 }
 
                 match *block {
@@ -135,7 +142,7 @@ impl Codegen for TopLevelStatement {
                 LLVMAddGVNPass(pass_manager);
                 LLVMAddCFGSimplificationPass(pass_manager);
                 core::LLVMInitializeFunctionPassManager(pass_manager);
-                core::LLVMRunFunctionPassManager(pass_manager, function);
+//                core::LLVMRunFunctionPassManager(pass_manager, function);
 
                 Some(function)
             }
@@ -148,7 +155,7 @@ impl Codegen for Statement {
         match *self {
             Statement::Expr(ref expr) => expr.codegen(context),
             Statement::VariableDeclaration(ref name, ref expr) => {
-                store_variable(&name, &expr.expr, context);
+                declare_variable(&name, expr, context);
                 None
             }
             Statement::Return(ref expr) => {
@@ -177,14 +184,14 @@ impl Codegen for Expr {
                     Some(core::LLVMConstInt(integer_type, i as _, 0 as LLVMBool))
                 }
                 Expr::Variable(ref name) => {
-                    if let Some(variable) = context.local_variables.get(name) {
+                    if let Some((variable, _)) = context.local_variables.get(name) {
                         Some(core::LLVMBuildLoad(
                             context.builder,
                             variable.clone(),
                             b"tmpload\0".as_ptr() as *const _,
                         ))
                     } else {
-                        context.local_arguments.get(name).cloned()
+                        panic!()
                     }
                 }
                 Expr::Call(ref name, ref args) => {
@@ -248,14 +255,6 @@ impl Codegen for Expr {
     }
 }
 
-unsafe fn store_variable(name: &str, expr: &Expr, context: &mut Context) {
-    let integer_type = core::LLVMInt32TypeInContext(context.context);
-    let c_name = CString::new(name.as_bytes()).unwrap();
-    let alloca = core::LLVMBuildAlloca(context.builder, integer_type, c_name.as_ptr());
-    let init_expr = expr.codegen(context).unwrap();
-    core::LLVMBuildStore(context.builder, init_expr, alloca);
-    context.local_variables.insert(name.to_string(), alloca);
-}
 
 impl Codegen for Prototype {
     unsafe fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef> {
@@ -278,19 +277,22 @@ impl Codegen for Prototype {
     }
 }
 
-unsafe fn get_any_type(ctx: &mut Context) -> LLVMTypeRef {
-    let mut elements = vec![
-        core::LLVMInt8TypeInContext(ctx.context), // tag
-        core::LLVMInt64TypeInContext(ctx.context), // payload
-    ];
-
-    core::LLVMStructTypeInContext(ctx.context, elements.as_mut_ptr(), 2, false as _)
-}
-
-macro_rules! c_str {
-    ($str:expr) => {
-        let string = CString::new(s).unwrap();
-        string.as_ptr()
+fn declare_variable(name: &str, expr: &TypedExpr, ctx: &mut Context) {
+    match expr.ty.as_str() {
+        TYPE_INTEGER => unsafe {
+            let c_name = CString::new(name).unwrap();
+            let allocated_value = core::LLVMBuildAlloca(ctx.builder, int32_type(ctx), c_name.as_ptr());
+            let init_expr = expr.expr.codegen(ctx).unwrap();
+            core::LLVMBuildStore(ctx.builder, init_expr, allocated_value);
+            ctx.local_variables.insert(name.to_string(), (allocated_value, TYPE_INTEGER.to_string()));
+        }
+        TYPE_ANY => unsafe {
+            let allocated_value = Any::allocate(ctx, name);
+            let init_expr = expr.expr.codegen(ctx).unwrap();
+            core::LLVMBuildStore(ctx.builder, init_expr, allocated_value);
+            ctx.local_variables.insert(name.to_string(), (allocated_value, TYPE_ANY.to_string()));
+        }
+        _ => unimplemented!()
     }
 }
 
