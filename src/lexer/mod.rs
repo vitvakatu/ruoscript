@@ -54,6 +54,7 @@ pub enum Token {
     SquareLeft,
     SquareRight,
     Comma,
+    Colon,
     Identifier(String),
     StringLiteral(String),
     Operator(String),
@@ -190,6 +191,11 @@ impl<'a> Lexer<'a> {
         // Comma: ,
         if self.last_char.1 == ',' {
             return Ok(Some(self.span(self.last_char.0, Token::Comma)));
+        }
+
+        // Colon: :
+        if self.last_char.1 == ':' {
+            return Ok(Some(self.span(self.last_char.0, Token::Colon)));
         }
 
         // String literal: ["'].*["']

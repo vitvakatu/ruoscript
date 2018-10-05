@@ -1,3 +1,5 @@
+use types::{FunctionType, TypedExpr};
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct Module(pub Vec<TopLevelStatement>);
 
@@ -6,12 +8,13 @@ pub struct Module(pub Vec<TopLevelStatement>);
 pub struct Prototype {
     pub name: String,
     pub args: Vec<String>,
+    pub ty: Option<FunctionType>,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Block {
     Void(Vec<Statement>),
-    NonVoid(Vec<Statement>, Box<Expr>),
+    NonVoid(Vec<Statement>, TypedExpr),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -22,9 +25,9 @@ pub enum TopLevelStatement {
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
-    Expr(Box<Expr>),
-    VariableDeclaration(String, Box<Expr>),
-    Return(Box<Expr>),
+    Expr(TypedExpr),
+    VariableDeclaration(String, TypedExpr),
+    Return(TypedExpr),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -33,9 +36,10 @@ pub enum Expr {
     String(String),
     Variable(String),
     /// Function call (function name, arguments)
-    Call(String, Vec<Box<Expr>>),
+    Call(String, Vec<TypedExpr>),
 }
 
+#[cfg(tests)]
 pub mod helpers {
     #![allow(unused)]
     use super::*;

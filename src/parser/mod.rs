@@ -1,7 +1,8 @@
 pub mod ast;
 
-use self::ast::{helpers::*, Block, Expr, Module, Prototype, Statement, TopLevelStatement};
+use self::ast::{Block, Expr, Module, Prototype, Statement, TopLevelStatement};
 use super::lexer::{Span, Token};
+use types::*;
 
 use failure::Error;
 use std::iter::Peekable;
@@ -89,7 +90,7 @@ impl<'a> Parser<'a> {
             Some(Span {
                 inner: Token::Integer(i),
                 ..
-            }) => Ok(int(i)),
+            }) => Ok(Box::new(Expr::Integer(i))),
             Some(other) => Err(ParserError::Expected(ExpectedToken::Integer, other))?,
             None => Err(ParserError::Eof)?,
         }
@@ -101,7 +102,7 @@ impl<'a> Parser<'a> {
             Some(Span {
                 inner: Token::StringLiteral(s),
                 ..
-            }) => Ok(string(s)),
+            }) => Ok(Box::new(Expr::String(s))),
             Some(other) => Err(ParserError::Expected(ExpectedToken::String, other))?,
             None => Err(ParserError::Eof)?,
         }
@@ -154,11 +155,11 @@ impl<'a> Parser<'a> {
                 }) = self.peek_next_token()
                 {
                     let _ = self.next_token();
-                    return Ok(call(identifier, args));
+                    return Ok(Box::new(Expr::Call(identifier, args)));
                 }
                 loop {
                     let arg = self.parse_expression()?;
-                    args.push(arg);
+                    args.push(TypedExpr::any(arg));
 
                     match self.peek_next_token() {
                         Some(Span {
@@ -179,9 +180,9 @@ impl<'a> Parser<'a> {
                     }
                 }
                 debug!("parsed function call: {}, {:?}", identifier, args);
-                Ok(call(identifier, args))
+                Ok(Box::new(Expr::Call(identifier, args)))
             }
-            _ => Ok(variable(identifier)),
+            _ => Ok(Box::new(Expr::Variable(identifier))),
         }
     }
 
@@ -255,21 +256,29 @@ impl<'a> Parser<'a> {
                 rhs = self.parse_binary_operator(token_precedence - 1, rhs)?;
             }
 
-            lhs = call(operator, vec![lhs, rhs]);
+            lhs = Box::new(Expr::Call(
+                operator,
+                vec![TypedExpr::any(lhs), TypedExpr::any(rhs)],
+            ));
+        }
+    }
+
+    fn parse_identifier_string(&mut self) -> Result<String, Error> {
+        let expr = self.parse_identifier()?;
+        if let Expr::Variable(ref s) = *expr {
+            Ok(s.clone())
+        } else {
+            unreachable!()
         }
     }
 
     fn parse_variable_declaration(&mut self) -> Result<Statement, Error> {
         // skip 'var'
         self.next_token();
-        let variable_name = match self.next_token() {
-            Some(Span {
-                inner: Token::Identifier(ref name),
-                ..
-            }) => name.clone(),
-            Some(other) => Err(ParserError::Expected(ExpectedToken::Identifier, other))?,
-            None => Err(ParserError::Eof)?,
-        };
+        let variable_name = self.parse_identifier_string()?;
+
+        // parse type
+        let ty = self.parse_optional_type()?;
 
         // skip '='
         match self.next_token() {
@@ -283,14 +292,17 @@ impl<'a> Parser<'a> {
         }
 
         let init_expr = self.parse_expression()?;
-        Ok(Statement::VariableDeclaration(variable_name, init_expr))
+        Ok(Statement::VariableDeclaration(
+            variable_name,
+            TypedExpr::with_type(init_expr, ty),
+        ))
     }
 
     fn parse_return_statement(&mut self) -> Result<Statement, Error> {
         // skip 'return'
         self.next_token();
         let expr = self.parse_expression()?;
-        Ok(Statement::Return(expr))
+        Ok(Statement::Return(TypedExpr::any(expr)))
     }
 
     fn parse_statement(&mut self) -> Result<Statement, Error> {
@@ -303,7 +315,9 @@ impl<'a> Parser<'a> {
                 inner: Token::Return,
                 ..
             }) => self.parse_return_statement(),
-            _ => self.parse_expression().map(Statement::Expr),
+            _ => self
+                .parse_expression()
+                .map(|e| Statement::Expr(TypedExpr::any(e))),
         }
     }
 
@@ -311,6 +325,20 @@ impl<'a> Parser<'a> {
         debug!("parsing expression");
         let lhs = self.parse_primary()?;
         self.parse_binary_operator(0, lhs)
+    }
+
+    fn parse_optional_type(&mut self) -> Result<String, Error> {
+        debug!("parsing optional type");
+        match self.peek_next_token() {
+            Some(Span {
+                inner: Token::Colon,
+                ..
+            }) => {
+                let _ = self.next_token();
+                self.parse_identifier_string()
+            }
+            _ => Ok(TYPE_ANY.to_string()),
+        }
     }
 
     fn parse_prototype(&mut self) -> Result<Prototype, Error> {
@@ -331,6 +359,7 @@ impl<'a> Parser<'a> {
             }) => {
                 // parse arguments
                 let mut args = Vec::new();
+                let mut arg_types = Vec::new();
                 // empty arguments list
                 if let Some(Span {
                     inner: Token::RoundRight,
@@ -338,20 +367,21 @@ impl<'a> Parser<'a> {
                 }) = self.peek_next_token()
                 {
                     let _ = self.next_token();
-                    return Ok(Prototype { name, args });
+                    let ty = self.parse_optional_type()?;
+                    return Ok(Prototype {
+                        name,
+                        args,
+                        ty: Some(FunctionType {
+                            args: vec![],
+                            ret: ty,
+                        }),
+                    });
                 }
+                // non-empty arguments list
                 loop {
-                    let arg = match self.next_token() {
-                        Some(Span {
-                            inner: Token::Identifier(s),
-                            ..
-                        }) => s,
-                        Some(other) => {
-                            Err(ParserError::Expected(ExpectedToken::Identifier, other))?
-                        }
-                        None => Err(ParserError::Eof)?,
-                    };
+                    let arg = self.parse_identifier_string()?;
                     args.push(arg);
+                    arg_types.push(self.parse_optional_type()?);
 
                     match self.peek_next_token() {
                         Some(Span {
@@ -371,7 +401,17 @@ impl<'a> Parser<'a> {
                         None => Err(ParserError::Eof)?,
                     }
                 }
-                Ok(Prototype { name, args })
+                // return type
+                let ty = self.parse_optional_type()?;
+
+                Ok(Prototype {
+                    name,
+                    args,
+                    ty: Some(FunctionType {
+                        args: arg_types,
+                        ret: ty,
+                    }),
+                })
             }
 
             Some(other) => Err(ParserError::Expected(ExpectedToken::RoundLeft, other))?,
@@ -511,23 +551,20 @@ mod tests {
             let Module(parsed) = parse_as_func_body($program).unwrap();
             assert_eq!(parsed.len(), 1);
             match parsed[0] {
-                TopLevelStatement::Function(Prototype {
-                    ref name,
-                    ref args,
-                }, ref block) => {
+                TopLevelStatement::Function(Prototype { ref name, ref args }, ref block) => {
                     assert_eq!(name, "anon_func");
                     assert_eq!(args.len(), 0);
                     assert_eq!(*block, $block);
                 }
-                _ => panic!()
+                _ => panic!(),
             }
-        }
+        };
     }
 
     macro_rules! assert_parse_top_level {
         ($program:expr => $module:expr) => {
             assert_eq!(parse_as_top_level($program).unwrap(), $module);
-        }
+        };
     }
 
     #[test]
@@ -625,4 +662,3 @@ mod tests {
         assert_parse!("a^b^c" => block_expr(pow(variable("a"), pow(variable("b"), variable("c")))));
     }
 }
-

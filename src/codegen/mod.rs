@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 
 use parser::ast::{Block, Expr, Module, Prototype, Statement, TopLevelStatement};
+use types::TypedExpr;
 
 pub struct Context {
     pub context: LLVMContextRef,
@@ -49,7 +50,7 @@ impl Context {
         }
 
         let string = unsafe {
-            ::std::ffi::CStr::from_ptr(::llvm_sys::core::LLVMPrintModuleToString(self.module))
+            ::std::ffi::CStr::from_ptr(core::LLVMPrintModuleToString(self.module))
         };
         debug!("Generated module: \n {}", string.to_str().unwrap());
     }
@@ -147,7 +148,7 @@ impl Codegen for Statement {
         match *self {
             Statement::Expr(ref expr) => expr.codegen(context),
             Statement::VariableDeclaration(ref name, ref expr) => {
-                store_variable(&name, &*expr, context);
+                store_variable(&name, &expr.expr, context);
                 None
             }
             Statement::Return(ref expr) => {
@@ -157,6 +158,12 @@ impl Codegen for Statement {
                 None
             }
         }
+    }
+}
+
+impl Codegen for TypedExpr {
+    unsafe fn codegen(&self, context: &mut Context) -> Option<LLVMValueRef> {
+        self.expr.codegen(context)
     }
 }
 
@@ -268,6 +275,22 @@ impl Codegen for Prototype {
             core::LLVMSetLinkage(function, llvm_sys::LLVMLinkage::LLVMExternalLinkage);
             Some(function)
         }
+    }
+}
+
+unsafe fn get_any_type(ctx: &mut Context) -> LLVMTypeRef {
+    let mut elements = vec![
+        core::LLVMInt8TypeInContext(ctx.context), // tag
+        core::LLVMInt64TypeInContext(ctx.context), // payload
+    ];
+
+    core::LLVMStructTypeInContext(ctx.context, elements.as_mut_ptr(), 2, false as _)
+}
+
+macro_rules! c_str {
+    ($str:expr) => {
+        let string = CString::new(s).unwrap();
+        string.as_ptr()
     }
 }
 

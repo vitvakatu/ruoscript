@@ -1,12 +1,11 @@
-extern put_char(c)
+extern put_char(c: Int): Int
 
-fun sum(a, b) {
+fun sum(a: Int, b: Int): Int {
    a + b
 }
 
-fun main() {
-    var a = 5
-    var b = 10
-    var c = sum(a, b)
-    return c
+fun main(): Void {
+    var a: Int = 5
+    var b: Int = 10
+    var c: Int = sum(a, b)
 }
