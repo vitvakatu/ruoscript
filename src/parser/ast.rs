@@ -8,7 +8,7 @@ pub struct Module(pub Vec<TopLevelStatement>);
 pub struct Prototype {
     pub name: String,
     pub args: Vec<String>,
-    pub ty: Option<FunctionType>,
+    pub ty: FunctionType,
 }
 
 #[derive(Debug, PartialEq, Clone)]

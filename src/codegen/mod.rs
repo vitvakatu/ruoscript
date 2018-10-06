@@ -93,7 +93,7 @@ impl Codegen for TopLevelStatement {
                     let param = core::LLVMGetParam(function, i as _);
                     params.push(param);
                 }
-                for (arg, arg_name) in params.iter().zip(proto.args.iter()) {
+                for (arg, arg_name) in params.iter().zip(proto.args.iter()).zip(proto.ty.) {
                     let allocated_value = core::LLVMBuildAlloca(ctx.builder, )
                     context
                         .local_variables
